@@ -1,7 +1,7 @@
 from http.server import SimpleHTTPRequestHandler, HTTPServer
 import json, time, os
 
-PORT = 8000
+PORT = int(os.environ.get("PORT", 8000))  # Render injects PORT
 locations = {}  # name -> {lat, lon, accuracy, timestamp}
 
 class Handler(SimpleHTTPRequestHandler):
@@ -17,6 +17,13 @@ class Handler(SimpleHTTPRequestHandler):
             self.send_header("Content-Type", "application/json")
             self.end_headers()
             self.wfile.write(json.dumps(locations).encode())
+        elif self.path in ("/", ""):
+            # Health check — Render pings this to confirm app is up
+            self.send_response(200)
+            self._cors()
+            self.send_header("Content-Type", "text/plain")
+            self.end_headers()
+            self.wfile.write(b"Live Tracker OK")
         else:
             super().do_GET()
 
@@ -32,9 +39,6 @@ class Handler(SimpleHTTPRequestHandler):
                 "timestamp": time.time()
             }
             print(f"[{name}] Lat: {body['lat']:.6f}, Lon: {body['lon']:.6f}, Acc: {body['accuracy']:.1f}m")
-            # Persist to file
-            with open("locations.json", "w") as f:
-                json.dump(locations, f)
             self.send_response(200)
             self._cors()
             self.end_headers()
@@ -49,13 +53,7 @@ class Handler(SimpleHTTPRequestHandler):
         self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
 
     def log_message(self, fmt, *args):
-        pass  # suppress default HTTP logs; we print our own
-
-# Load previous state if exists
-if os.path.exists("locations.json"):
-    with open("locations.json") as f:
-        locations = json.load(f)
-    print(f"Loaded {len(locations)} saved device(s).")
+        pass  # suppress default HTTP logs
 
 print(f"Server running on http://0.0.0.0:{PORT}")
 HTTPServer(("0.0.0.0", PORT), Handler).serve_forever()
