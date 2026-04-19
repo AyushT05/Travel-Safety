@@ -1,0 +1,448 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>Live Tracker Dashboard</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.3/dist/leaflet.css"/>
+  <script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.3/dist/leaflet.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --sidebar-w: 320px;
+      --header-h: 56px;
+      --bg: #f0f4f8;
+      --surface: #ffffff;
+      --border: #e5e7eb;
+      --text: #111827;
+      --muted: #6b7280;
+      --accent: #3b82f6;
+      --green: #22c55e;
+      --red: #ef4444;
+      --amber: #f59e0b;
+    }
+
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
+
+    /* ── Header ── */
+    header {
+      height: var(--header-h);
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 0 20px;
+      flex-shrink: 0;
+      z-index: 1000;
+    }
+    .logo { display: flex; align-items: center; gap: 10px; }
+    .logo-icon { width: 32px; height: 32px; background: #eff6ff; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 16px; }
+    .logo-text { font-size: 16px; font-weight: 600; color: var(--text); }
+    .header-stats { display: flex; gap: 20px; align-items: center; }
+    .stat-pill {
+      display: flex; align-items: center; gap: 6px;
+      background: var(--bg);
+      border-radius: 20px;
+      padding: 4px 12px;
+      font-size: 13px; color: var(--muted);
+    }
+    .stat-pill strong { color: var(--text); font-weight: 600; }
+    .dot { width: 7px; height: 7px; border-radius: 50%; }
+    .dot-green { background: var(--green); box-shadow: 0 0 0 2px rgba(34,197,94,0.2); animation: pulse 2s infinite; }
+    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+
+    /* ── Layout ── */
+    .layout { display: flex; flex: 1; overflow: hidden; }
+
+    /* ── Sidebar ── */
+    aside {
+      width: var(--sidebar-w);
+      background: var(--surface);
+      border-right: 1px solid var(--border);
+      display: flex; flex-direction: column;
+      flex-shrink: 0;
+      overflow: hidden;
+    }
+    .sidebar-header {
+      padding: 14px 16px 10px;
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+    }
+    .sidebar-title { font-size: 13px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; }
+    .device-list { overflow-y: auto; flex: 1; padding: 8px; }
+
+    .device-card {
+      border: 1.5px solid var(--border);
+      border-radius: 12px;
+      padding: 12px 14px;
+      margin-bottom: 8px;
+      cursor: pointer;
+      transition: all 0.15s;
+      background: var(--surface);
+    }
+    .device-card:hover { border-color: var(--accent); background: #f8faff; }
+    .device-card.selected { border-color: var(--accent); background: #eff6ff; }
+    .device-card.stale { opacity: 0.6; }
+
+    .dc-header { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+    .avatar {
+      width: 36px; height: 36px; border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 13px; font-weight: 600; color: white; flex-shrink: 0;
+    }
+    .dc-name { font-size: 14px; font-weight: 600; color: var(--text); }
+    .dc-time { font-size: 11px; color: var(--muted); margin-top: 1px; }
+    .badge {
+      margin-left: auto; padding: 2px 8px;
+      border-radius: 20px; font-size: 11px; font-weight: 500;
+    }
+    .badge-live { background: #dcfce7; color: #16a34a; }
+    .badge-stale { background: #fef3c7; color: #92400e; }
+    .badge-offline { background: #fee2e2; color: #991b1b; }
+
+    .dc-stats { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 6px; }
+    .dc-stat { background: var(--bg); border-radius: 8px; padding: 6px 8px; }
+    .dc-stat-label { font-size: 10px; color: var(--muted); margin-bottom: 2px; }
+    .dc-stat-value { font-size: 13px; font-weight: 600; color: var(--text); }
+
+    .empty-state {
+      text-align: center; padding: 48px 20px;
+      color: var(--muted); font-size: 14px; line-height: 1.6;
+    }
+    .empty-icon { font-size: 36px; margin-bottom: 12px; }
+
+    /* ── Map ── */
+    .map-area { flex: 1; position: relative; }
+    #map { width: 100%; height: 100%; }
+
+    /* ── Map overlay controls ── */
+    .map-controls {
+      position: absolute; top: 12px; right: 12px; z-index: 900;
+      display: flex; flex-direction: column; gap: 8px;
+    }
+    .ctrl-btn {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 8px 14px;
+      font-size: 13px; font-weight: 500; color: var(--text);
+      cursor: pointer; box-shadow: 0 1px 4px rgba(0,0,0,0.08);
+      white-space: nowrap;
+      transition: background 0.15s;
+    }
+    .ctrl-btn:hover { background: var(--bg); }
+    .ctrl-btn.active { background: #eff6ff; color: var(--accent); border-color: #bfdbfe; }
+
+    /* ── Selected device panel (bottom of map) ── */
+    .device-panel {
+      position: absolute; bottom: 0; left: 0; right: 0; z-index: 900;
+      background: var(--surface);
+      border-top: 1px solid var(--border);
+      padding: 14px 20px;
+      display: none;
+      animation: slideUp 0.2s ease;
+    }
+    .device-panel.visible { display: block; }
+    @keyframes slideUp { from{transform:translateY(20px);opacity:0} to{transform:translateY(0);opacity:1} }
+    .panel-row { display: flex; align-items: center; justify-content: space-between; }
+    .panel-name { font-size: 16px; font-weight: 600; color: var(--text); }
+    .panel-coords { font-size: 12px; color: var(--muted); font-family: monospace; margin-top: 2px; }
+    .panel-metrics { display: flex; gap: 20px; }
+    .panel-metric { text-align: right; }
+    .panel-metric-label { font-size: 11px; color: var(--muted); }
+    .panel-metric-value { font-size: 18px; font-weight: 600; color: var(--text); }
+    .panel-metric-unit { font-size: 11px; color: var(--muted); }
+
+    /* scrollbar */
+    .device-list::-webkit-scrollbar { width: 4px; }
+    .device-list::-webkit-scrollbar-track { background: transparent; }
+    .device-list::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="logo">
+    <div class="logo-icon">🗺️</div>
+    <span class="logo-text">Live Tracker</span>
+  </div>
+  <div class="header-stats">
+    <div class="stat-pill"><div class="dot dot-green"></div> <strong id="liveCount">0</strong> live</div>
+    <div class="stat-pill">🔵 <strong id="totalCount">0</strong> total</div>
+    <div class="stat-pill" id="lastUpdPill">⏱ —</div>
+  </div>
+</header>
+
+<div class="layout">
+  <aside>
+    <div class="sidebar-header">
+      <div class="sidebar-title">Devices</div>
+    </div>
+    <div class="device-list" id="deviceList">
+      <div class="empty-state">
+        <div class="empty-icon">📱</div>
+        Waiting for devices to connect…<br>Open <strong>mobile.html</strong> on a phone and start sharing.
+      </div>
+    </div>
+  </aside>
+
+  <div class="map-area">
+    <div id="map"></div>
+    <div class="map-controls">
+      <button class="ctrl-btn active" id="followBtn" onclick="toggleFollow()">Follow all</button>
+      <button class="ctrl-btn" onclick="fitAll()">Fit all</button>
+      <button class="ctrl-btn" onclick="clearTrails()">Clear trails</button>
+    </div>
+    <div class="device-panel" id="devicePanel">
+      <div class="panel-row">
+        <div>
+          <div class="panel-name" id="panelName">—</div>
+          <div class="panel-coords" id="panelCoords">—</div>
+        </div>
+        <div class="panel-metrics">
+          <div class="panel-metric">
+            <div class="panel-metric-label">Speed</div>
+            <div><span class="panel-metric-value" id="panelSpeed">0</span><span class="panel-metric-unit"> km/h</span></div>
+          </div>
+          <div class="panel-metric">
+            <div class="panel-metric-label">Accuracy</div>
+            <div><span class="panel-metric-value" id="panelAcc">—</span><span class="panel-metric-unit"> m</span></div>
+          </div>
+          <div class="panel-metric">
+            <div class="panel-metric-label">Updates</div>
+            <div><span class="panel-metric-value" id="panelUpdates">0</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ── Config ──
+const SERVER = '';          // empty = same origin
+const POLL_MS = 2000;
+const STALE_S = 30;         // seconds before "stale"
+const OFFLINE_S = 120;      // seconds before "offline"
+const PALETTE = ['#3b82f6','#8b5cf6','#ec4899','#f97316','#14b8a6','#84cc16','#ef4444','#06b6d4'];
+
+// ── State ──
+const devices = {};         // name → device state
+let selectedDevice = null;
+let followMode = true;
+let map;
+
+// ── Map init ──
+map = L.map('map', { zoomControl: false }).setView([20, 78], 5);
+L.control.zoom({ position: 'bottomright' }).addTo(map);
+L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+  attribution: '&copy; OpenStreetMap contributors',
+  updateWhenZooming: false, updateWhenIdle: true, keepBuffer: 6
+}).addTo(map);
+
+// ── Helpers ──
+function colorFor(name) {
+  let hash = 0;
+  for (let c of name) hash = (hash * 31 + c.charCodeAt(0)) & 0xffffffff;
+  return PALETTE[Math.abs(hash) % PALETTE.length];
+}
+
+function initials(name) {
+  return name.split(' ').map(w => w[0]).join('').slice(0,2).toUpperCase();
+}
+
+function makeIcon(color) {
+  return L.divIcon({
+    className: '',
+    html: `<div style="width:34px;height:34px;border-radius:50%;background:${color};border:3px solid white;box-shadow:0 2px 8px rgba(0,0,0,0.3);display:flex;align-items:center;justify-content:center;color:white;font-size:11px;font-weight:700;"></div>`,
+    iconSize: [34, 34],
+    iconAnchor: [17, 17]
+  });
+}
+
+function haversineKm(a, b) {
+  const R = 6371, toRad = d => d * Math.PI / 180;
+  const dLat = toRad(b[0] - a[0]), dLon = toRad(b[1] - a[1]);
+  const s = Math.sin(dLat/2)**2 + Math.cos(toRad(a[0])) * Math.cos(toRad(b[0])) * Math.sin(dLon/2)**2;
+  return R * 2 * Math.atan2(Math.sqrt(s), Math.sqrt(1-s));
+}
+
+function timeAgo(ts) {
+  const s = Math.round((Date.now()/1000) - ts);
+  if (s < 5) return 'just now';
+  if (s < 60) return `${s}s ago`;
+  if (s < 3600) return `${Math.floor(s/60)}m ago`;
+  return `${Math.floor(s/3600)}h ago`;
+}
+
+function statusFor(ts) {
+  const age = Date.now()/1000 - ts;
+  if (age < STALE_S) return 'live';
+  if (age < OFFLINE_S) return 'stale';
+  return 'offline';
+}
+
+// ── Update / render device ──
+function ensureDevice(name) {
+  if (devices[name]) return;
+  const color = colorFor(name);
+  const marker = L.marker([0,0], { icon: makeIcon(color) }).addTo(map);
+  const circle  = L.circle([0,0], { radius:0, color, fillColor: color, fillOpacity:0.1, weight:1 }).addTo(map);
+  const polyline = L.polyline([], { color, weight:2.5, opacity:0.7 }).addTo(map);
+
+  marker.on('click', () => selectDevice(name));
+
+  devices[name] = {
+    color, marker, circle, polyline,
+    path: [],
+    lastLatlng: null, lastTimestamp: null,
+    speed: 0, updates: 0, accuracy: 0,
+    timestamp: 0
+  };
+}
+
+function updateDevice(name, data) {
+  ensureDevice(name);
+  const d = devices[name];
+  const latlng = [data.lat, data.lon];
+  const now = Date.now() / 1000;
+
+  // Speed calc
+  if (d.lastLatlng && d.lastTimestamp) {
+    const km = haversineKm(d.lastLatlng, latlng);
+    const dt = now - d.lastTimestamp;
+    d.speed = dt > 0 ? (km / dt) * 3600 : 0;
+  }
+  d.lastLatlng = latlng;
+  d.lastTimestamp = now;
+  d.accuracy = data.accuracy;
+  d.timestamp = data.timestamp || now;
+  d.updates++;
+
+  d.marker.setLatLng(latlng);
+  d.circle.setLatLng(latlng).setRadius(data.accuracy);
+  d.path.push(latlng);
+  d.polyline.setLatLngs(d.path);
+}
+
+// ── Polling ──
+async function poll() {
+  try {
+    const res = await fetch(SERVER + '/locations?nocache=' + Date.now());
+    const all = await res.json();
+    for (const [name, data] of Object.entries(all)) {
+      updateDevice(name, data);
+    }
+    renderSidebar();
+    renderHeader();
+    if (followMode) followAll();
+    if (selectedDevice && devices[selectedDevice]) updatePanel();
+    document.getElementById('lastUpdPill').textContent = '⏱ ' + new Date().toLocaleTimeString();
+  } catch(e) {
+    console.log('Waiting…', e.message);
+  }
+}
+
+// ── Sidebar ──
+function renderSidebar() {
+  const list = document.getElementById('deviceList');
+  const names = Object.keys(devices);
+  if (!names.length) return;
+
+  list.innerHTML = '';
+  names.sort().forEach(name => {
+    const d = devices[name];
+    const status = statusFor(d.timestamp);
+    const card = document.createElement('div');
+    card.className = 'device-card' + (name === selectedDevice ? ' selected' : '') + (status === 'offline' ? ' stale' : '');
+    card.onclick = () => selectDevice(name);
+
+    const badgeClass = status === 'live' ? 'badge-live' : status === 'stale' ? 'badge-stale' : 'badge-offline';
+    const badgeText = status === 'live' ? '⬤ Live' : status === 'stale' ? '◌ Stale' : '✕ Offline';
+
+    card.innerHTML = `
+      <div class="dc-header">
+        <div class="avatar" style="background:${d.color}">${initials(name)}</div>
+        <div>
+          <div class="dc-name">${name}</div>
+          <div class="dc-time">${timeAgo(d.timestamp)}</div>
+        </div>
+        <span class="badge ${badgeClass}">${badgeText}</span>
+      </div>
+      <div class="dc-stats">
+        <div class="dc-stat">
+          <div class="dc-stat-label">Speed</div>
+          <div class="dc-stat-value">${d.speed.toFixed(1)} <span style="font-size:10px;font-weight:400;color:#6b7280">km/h</span></div>
+        </div>
+        <div class="dc-stat">
+          <div class="dc-stat-label">Accuracy</div>
+          <div class="dc-stat-value">${d.accuracy.toFixed(0)} <span style="font-size:10px;font-weight:400;color:#6b7280">m</span></div>
+        </div>
+        <div class="dc-stat">
+          <div class="dc-stat-label">Updates</div>
+          <div class="dc-stat-value">${d.updates}</div>
+        </div>
+      </div>`;
+    list.appendChild(card);
+  });
+}
+
+// ── Header stats ──
+function renderHeader() {
+  const names = Object.keys(devices);
+  const live = names.filter(n => statusFor(devices[n].timestamp) === 'live').length;
+  document.getElementById('liveCount').textContent = live;
+  document.getElementById('totalCount').textContent = names.length;
+}
+
+// ── Device panel ──
+function selectDevice(name) {
+  selectedDevice = name;
+  document.getElementById('devicePanel').classList.add('visible');
+  updatePanel();
+  const d = devices[name];
+  if (d.lastLatlng) map.flyTo(d.lastLatlng, 16, { duration: 0.8 });
+}
+
+function updatePanel() {
+  const d = devices[selectedDevice];
+  if (!d || !d.lastLatlng) return;
+  document.getElementById('panelName').textContent = selectedDevice;
+  document.getElementById('panelCoords').textContent = `${d.lastLatlng[0].toFixed(5)}, ${d.lastLatlng[1].toFixed(5)}`;
+  document.getElementById('panelSpeed').textContent = d.speed.toFixed(1);
+  document.getElementById('panelAcc').textContent = d.accuracy.toFixed(0);
+  document.getElementById('panelUpdates').textContent = d.updates;
+}
+
+// ── Map controls ──
+function toggleFollow() {
+  followMode = !followMode;
+  const btn = document.getElementById('followBtn');
+  btn.textContent = followMode ? 'Follow all' : 'Follow: off';
+  btn.classList.toggle('active', followMode);
+}
+
+function followAll() {
+  const pts = Object.values(devices).filter(d => d.lastLatlng).map(d => d.lastLatlng);
+  if (!pts.length) return;
+  if (pts.length === 1) { map.panTo(pts[0], { animate:true, duration:0.5 }); return; }
+  map.fitBounds(L.latLngBounds(pts), { padding: [60,60], animate:true, duration:0.8 });
+}
+
+function fitAll() {
+  followMode = false;
+  document.getElementById('followBtn').textContent = 'Follow: off';
+  document.getElementById('followBtn').classList.remove('active');
+  followAll();
+}
+
+function clearTrails() {
+  Object.values(devices).forEach(d => { d.path = []; d.polyline.setLatLngs([]); });
+}
+
+// ── Start ──
+poll();
+setInterval(poll, POLL_MS);
+</script>
+</body>
+</html>

@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>Share Location</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: #f0f4f8;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+    }
+    .card {
+      background: white;
+      border-radius: 20px;
+      padding: 32px 28px;
+      width: 100%;
+      max-width: 380px;
+      box-shadow: 0 4px 24px rgba(0,0,0,0.08);
+    }
+    .icon {
+      width: 56px; height: 56px;
+      background: #e8f4ff;
+      border-radius: 16px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 26px;
+      margin-bottom: 20px;
+    }
+    h1 { font-size: 22px; font-weight: 600; color: #111; margin-bottom: 6px; }
+    .subtitle { font-size: 14px; color: #666; margin-bottom: 28px; line-height: 1.5; }
+
+    label { font-size: 13px; font-weight: 500; color: #444; display: block; margin-bottom: 6px; }
+    input[type="text"] {
+      width: 100%;
+      padding: 12px 14px;
+      border: 1.5px solid #e0e0e0;
+      border-radius: 12px;
+      font-size: 15px;
+      color: #111;
+      outline: none;
+      transition: border-color 0.2s;
+      margin-bottom: 20px;
+    }
+    input[type="text"]:focus { border-color: #3b82f6; }
+
+    .btn {
+      width: 100%;
+      padding: 14px;
+      border: none;
+      border-radius: 12px;
+      font-size: 15px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+      display: flex; align-items: center; justify-content: center; gap: 8px;
+    }
+    .btn-primary { background: #3b82f6; color: white; }
+    .btn-primary:active { background: #2563eb; transform: scale(0.98); }
+    .btn-stop { background: #fee2e2; color: #dc2626; margin-top: 10px; }
+    .btn-stop:active { background: #fecaca; }
+    .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    .status-box {
+      display: none;
+      background: #f8faff;
+      border: 1.5px solid #dbeafe;
+      border-radius: 14px;
+      padding: 16px;
+      margin-top: 20px;
+    }
+    .status-box.active { display: block; }
+    .status-label { font-size: 12px; color: #666; margin-bottom: 4px; }
+    .status-value { font-size: 14px; font-weight: 500; color: #111; }
+    .status-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    .pulse { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #22c55e; margin-right: 6px; animation: pulse 1.5s infinite; }
+    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.3} }
+
+    .error-msg {
+      background: #fff5f5;
+      border: 1.5px solid #fecaca;
+      border-radius: 10px;
+      padding: 12px;
+      font-size: 13px;
+      color: #dc2626;
+      margin-top: 14px;
+      display: none;
+    }
+    .error-msg.visible { display: block; }
+
+    .updates-count {
+      font-size: 12px; color: #888; margin-top: 10px; text-align: center;
+    }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="icon">📍</div>
+    <h1>Location Share</h1>
+    <p class="subtitle">Enter your name and start sharing your live location with the dashboard.</p>
+
+    <label for="nameInput">Your name</label>
+    <input type="text" id="nameInput" placeholder="e.g. Alice" maxlength="32" autocomplete="off"/>
+
+    <button class="btn btn-primary" id="startBtn" onclick="startSharing()">
+      Start sharing
+    </button>
+    <button class="btn btn-stop" id="stopBtn" onclick="stopSharing()" style="display:none">
+      Stop sharing
+    </button>
+
+    <div class="status-box" id="statusBox">
+      <div class="status-grid">
+        <div>
+          <div class="status-label">Latitude</div>
+          <div class="status-value" id="sLat">—</div>
+        </div>
+        <div>
+          <div class="status-label">Longitude</div>
+          <div class="status-value" id="sLon">—</div>
+        </div>
+        <div>
+          <div class="status-label">Accuracy</div>
+          <div class="status-value" id="sAcc">—</div>
+        </div>
+        <div>
+          <div class="status-label">Status</div>
+          <div class="status-value"><span class="pulse"></span>Live</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="error-msg" id="errMsg"></div>
+    <p class="updates-count" id="updCount" style="display:none"></p>
+  </div>
+
+<script>
+  let watchId = null;
+  let updateCount = 0;
+  let deviceName = '';
+
+  // Replace this with your deployed server URL when live
+  const SERVER = '';  // empty = same origin (works with ngrok & Railway)
+
+  function startSharing() {
+    const nameInput = document.getElementById('nameInput');
+    deviceName = nameInput.value.trim();
+    if (!deviceName) {
+      nameInput.focus();
+      nameInput.style.borderColor = '#dc2626';
+      return;
+    }
+    nameInput.style.borderColor = '#22c55e';
+    if (!navigator.geolocation) {
+      showError('Geolocation is not supported by your browser.');
+      return;
+    }
+    document.getElementById('startBtn').style.display = 'none';
+    document.getElementById('stopBtn').style.display = 'flex';
+    document.getElementById('statusBox').classList.add('active');
+    document.getElementById('updCount').style.display = 'block';
+    nameInput.disabled = true;
+
+    watchId = navigator.geolocation.watchPosition(
+      onPosition,
+      onError,
+      { enableHighAccuracy: true, maximumAge: 5000 }
+    );
+  }
+
+  async function onPosition(pos) {
+    const data = {
+      name: deviceName,
+      lat: pos.coords.latitude,
+      lon: pos.coords.longitude,
+      accuracy: pos.coords.accuracy
+    };
+    document.getElementById('sLat').textContent = data.lat.toFixed(5);
+    document.getElementById('sLon').textContent = data.lon.toFixed(5);
+    document.getElementById('sAcc').textContent = data.accuracy.toFixed(0) + ' m';
+    updateCount++;
+    document.getElementById('updCount').textContent = `${updateCount} update${updateCount !== 1 ? 's' : ''} sent`;
+
+    try {
+      await fetch(SERVER + '/update-location', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data)
+      });
+      hideError();
+    } catch (e) {
+      showError('Could not reach server. Retrying...');
+    }
+  }
+
+  function onError(err) {
+    showError('GPS Error: ' + err.message);
+  }
+
+  function stopSharing() {
+    if (watchId !== null) {
+      navigator.geolocation.clearWatch(watchId);
+      watchId = null;
+    }
+    document.getElementById('startBtn').style.display = 'flex';
+    document.getElementById('stopBtn').style.display = 'none';
+    document.getElementById('statusBox').classList.remove('active');
+    document.getElementById('nameInput').disabled = false;
+    document.getElementById('updCount').style.display = 'none';
+    updateCount = 0;
+  }
+
+  function showError(msg) {
+    const el = document.getElementById('errMsg');
+    el.textContent = msg;
+    el.classList.add('visible');
+  }
+  function hideError() {
+    document.getElementById('errMsg').classList.remove('visible');
+  }
+</script>
+</body>
+</html>
