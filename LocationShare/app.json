@@ -1,0 +1,68 @@
+{
+  "expo": {
+    "name": "Margarakshak",
+    "slug": "location-share",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "scheme": "livetracker",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "splash": {
+      "image": "./assets/splash.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#F4F1EC"
+    },
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "com.ayusht05.locationshare",
+      "infoPlist": {
+        "NSLocationWhenInUseUsageDescription": "Margarakshak needs your location to share it with your trusted contacts.",
+        "NSLocationAlwaysAndWhenInUseUsageDescription": "Margarakshak needs your location to keep you safe during your journey."
+      }
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#F4F1EC"
+      },
+      "package": "com.ayusht05.locationshare",
+      "permissions": [
+        "ACCESS_FINE_LOCATION",
+        "ACCESS_COARSE_LOCATION",
+        "android.permission.ACCESS_COARSE_LOCATION",
+        "android.permission.ACCESS_FINE_LOCATION"
+      ],
+      "intentFilters": [
+        {
+          "action": "VIEW",
+          "autoVerify": true,
+          "data": [
+            {
+              "scheme": "livetracker"
+            }
+          ],
+          "category": [
+            "BROWSABLE",
+            "DEFAULT"
+          ]
+        }
+      ]
+    },
+    "plugins": [
+      [
+        "expo-location",
+        {
+          "locationAlwaysAndWhenInUsePermission": "Margarakshak needs your location to keep you safe during your journey."
+        }
+      ],
+      "expo-web-browser",
+      "expo-font"
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "bfaa522d-6178-4bf5-b3bb-4b9681d443a5"
+      }
+    },
+    "owner": "ayusht05"
+  }
+}

@@ -1,0 +1,26 @@
+node_modules/
+.expo/
+dist/
+web-build/
+
+# Environment variables
+.env
+.env.local
+.env.*.local
+
+# macOS
+.DS_Store
+*.pem
+
+# Logs
+npm-debug.*
+yarn-debug.*
+yarn-error.*
+
+# Native
+*.orig.*
+*.jks
+*.p8
+*.p12
+*.key
+*.mobileprovision
