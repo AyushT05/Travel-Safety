@@ -1,24 +1,38 @@
 # Travel Safety
 
-A full-stack tourist safety and live-location monitoring system, built around a shared Supabase backend. Travellers create a trip profile and share live GPS location from a mobile app; a web dashboard lets an admin or emergency contact watch tracked travellers on a live map.
+## Problem Statement
 
-The project has three parts:
+**Smart Tourist Safety Monitoring & Incident Response System using AI, Geo-Fencing, and Blockchain-based Digital ID**
 
-```
-.
-├── WebDashboard/margarakshak/   React + Vite web dashboard (admin/monitoring view)
-├── LocationShare/               React Native (Expo) mobile app (traveller-facing)
-├── server.py                    Lightweight Python location relay (legacy/standalone)
-├── live_map.html, mobile.html   Standalone HTML prototypes of the map/mobile flow
-├── location.json                Sample/scratch location data
-├── Procfile, requirements.txt   Deployment config for server.py (e.g. Render)
-```
+Tourism-heavy regions — especially remote or high-risk areas like the Northeast — struggle to keep visitors safe with traditional policing and manual tracking. The envisioned solution is a full digital ecosystem: blockchain-issued digital tourist IDs, a mobile app with geo-fencing alerts and a panic button, AI-based anomaly detection for missing/distress behaviour, a real-time police/tourism-department dashboard with heat maps and automated E-FIR generation, optional IoT wearables for high-risk zones, and multilingual, privacy-compliant access for all travellers.
 
-## How it fits together
+## What this project actually builds
 
-- **LocationShare** (mobile app) — a traveller signs up, fills out a **travel card** (personal details, ID document, trip dates, places, travel companions, and at least 3 emergency contacts), then starts **active tracking**, which streams live GPS location to Supabase.
-- **WebDashboard** (web app) — an authenticated viewer sees tracked travellers as live pins on a Leaflet map, can select a device to follow, view their travel card details, and manage which IDs they're tracking.
-- **server.py / live_map.html / mobile.html** — an earlier, simpler prototype of the same idea using a standalone Python HTTP server (in-memory location store, no auth, no database) with a bare HTML map and mobile client. Kept for reference/fallback; the Supabase-backed apps above are the current version.
+This repo implements the core traveller-monitoring loop of that vision: a mobile app for tourists and a web dashboard for whoever is watching over them, both backed by a shared Supabase database.
+
+**Digital travel card (mobile app)** — Instead of a blockchain-issued ID, a traveller creates a **travel card**: full name, mobile number, an identity document upload (image or PDF), trip start/end dates, planned places, travel companions, and a minimum of 3 emergency contacts. This is stored in Supabase and scoped to that traveller's account.
+
+**Live location sharing (mobile app)** — Once a travel card's trip dates are active, the app prompts for location permission and, once started, streams the traveller's GPS position (lat/lon/accuracy) every few seconds while tracking is on. The traveller can stop sharing at any time.
+
+**Monitoring dashboard (web app)** — An authenticated viewer sees active travellers as live pins on a Leaflet map, can select a traveller to follow their movement, inspect their travel card (trip dates, route, emergency contacts), search/manage which traveller IDs they're tracking, and clear trail history.
+
+**Legacy prototype (`server.py`, `live_map.html`, `mobile.html`)** — The earliest version of this idea: a dependency-free Python HTTP server holding locations in memory, a bare HTML map, and a plain mobile web page for sending location. No auth, no database, no persistence — superseded by the Supabase-backed apps but kept in the repo as the original proof of concept.
+
+## Mapped against the problem statement
+
+| Problem statement asks for | Status |
+|---|---|
+| Digital Tourist ID (blockchain, KYC, entry-point issuance) | Partial — traveller profile + ID document exist as a **Supabase-backed travel card**, not blockchain-based, not issued at physical entry points |
+| Tourist Safety Score | Not implemented |
+| Geo-fencing alerts for high-risk zones | Not implemented |
+| Panic button with live sharing to police/contacts | Not implemented — location sharing exists, but it's manually started/stopped by the traveller, not an SOS trigger |
+| Opt-in real-time tracking for families/law enforcement | Implemented — live GPS streaming, dashboard viewing |
+| AI-based anomaly detection (drop-offs, inactivity, route deviation) | Not implemented |
+| Police/tourism department dashboard with heat maps | Partial — live map + traveller list + travel card lookup exist; no heat maps, no alert history |
+| Automated E-FIR generation | Not implemented |
+| IoT wearable integration | Not implemented |
+| Multilingual support | Not implemented (English only) |
+| End-to-end encryption / data protection compliance | Relies on Supabase's built-in auth and transport security; no additional encryption layer added |
 
 ## Tech stack
 
@@ -27,58 +41,16 @@ The project has three parts:
 | Mobile app | React Native, Expo SDK 54, `expo-location`, `expo-document-picker` |
 | Web dashboard | React 19, Vite, Leaflet |
 | Backend / data | Supabase (Auth + Postgres) |
-| Legacy relay | Python 3 stdlib `http.server` (no dependencies), deployable on Render |
+| Legacy relay | Python 3 stdlib `http.server`, deployable on Render |
 
-## Getting started
+## Repo layout
 
-### Web dashboard
-```bash
-cd WebDashboard/margarakshak
-npm install
 ```
-Create a `.env` file in this folder with:
+.
+├── WebDashboard/margarakshak/   Web dashboard (React + Vite)
+├── LocationShare/               Mobile app (React Native / Expo)
+├── server.py                    Legacy in-memory location relay
+├── live_map.html, mobile.html   Legacy standalone prototype pages
+├── location.json                Sample/scratch location data
+├── Procfile, requirements.txt   Deployment config for server.py
 ```
-VITE_SUPABASE_URL=your-supabase-project-url
-VITE_SUPABASE_ANON_KEY=your-supabase-anon-key
-```
-Then:
-```bash
-npm run dev
-```
-
-### Mobile app
-```bash
-cd LocationShare
-npm install
-```
-Create a `.env` file in this folder with:
-```
-EXPO_PUBLIC_SUPABASE_URL=your-supabase-project-url
-EXPO_PUBLIC_SUPABASE_ANON_KEY=your-supabase-anon-key
-```
-Then:
-```bash
-npx expo start
-```
-Scan the QR code with the **Expo Go** app on your phone, or run `npx expo start --android` / `--ios` for a simulator.
-
-Both apps point at the same Supabase project, so a traveller created via the mobile app is what shows up on the web dashboard.
-
-### Legacy standalone server (optional)
-```bash
-pip install -r requirements.txt   # no external deps, stdlib only
-python server.py
-```
-Serves `live_map.html` and `mobile.html` and exposes:
-- `POST /update-location` — push a location update
-- `GET /locations` — fetch current in-memory locations
-
-## Environment variables
-
-Neither `.env` file is committed. You'll need your own Supabase project URL and anon key — set up a Supabase project, enable email auth, and create tables for travellers/travel cards/locations to match what `useDevices.js` and the mobile screens query.
-
-> **Note:** the Supabase anon key is safe to expose client-side by design, but make sure Row Level Security (RLS) policies are enabled on your tables so travellers can only read/write data they're supposed to.
-
-## Status
-
-Actively developed as a college major project. The Supabase-backed mobile + dashboard pair is the primary version going forward; the root-level Python server and HTML files are an earlier prototype kept for reference.
