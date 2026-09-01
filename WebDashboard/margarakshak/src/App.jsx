@@ -2,6 +2,7 @@ import Header from "./components/Header";
 import Sidebar from "./components/Sidebar";
 import MapView from "./components/MapView";
 import DevicePanel from "./components/DevicePanel";
+import NearbyServicesPanel from "./components/NearbyServicesPanel";
 import MapControls from "./components/MapControls";
 import LoginPage from "./components/LoginPage";
 import UserIdPanel from "./components/UserIdPanel";
@@ -141,6 +142,11 @@ export default function App() {
             device={devices[selected]}
             name={selected}
             travelCards={travelCards}
+          />
+
+          <NearbyServicesPanel
+            lat={devices[selected]?.lastLatlng?.[0]}
+            lon={devices[selected]?.lastLatlng?.[1]}
           />
         </div>
       </div>

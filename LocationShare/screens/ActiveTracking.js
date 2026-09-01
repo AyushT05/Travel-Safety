@@ -8,6 +8,7 @@ import * as Location from 'expo-location';
 import { Ionicons, Feather } from '@expo/vector-icons';
 import { supabase } from '../lib/supabase';
 import PanicButton from '../components/PanicButton';
+import NearbyServices from '../components/NearbyServices';
 
 export default function ActiveTracking({ user, card, onStop }) {
   const [isSharing, setIsSharing]       = useState(false);
@@ -206,6 +207,11 @@ export default function ActiveTracking({ user, card, onStop }) {
               <InfoRow key={i} label={c.name} value={c.phone} />
             ))}
           </View>
+        )}
+
+        {/* Nearby emergency services — visible only while sharing */}
+        {isSharing && locationData && (
+          <NearbyServices lat={locationData.lat} lon={locationData.lon} />
         )}
       </ScrollView>
     </View>

@@ -1,5 +1,6 @@
 from http.server import SimpleHTTPRequestHandler, HTTPServer
 import json, time, os
+from urllib import request, parse
 
 PORT = int(os.environ.get("PORT", 8000))  # Render injects PORT
 locations = {}  # name -> {lat, lon, accuracy, timestamp}
@@ -43,6 +44,53 @@ class Handler(SimpleHTTPRequestHandler):
             self._cors()
             self.end_headers()
             self.wfile.write(b"OK")
+        elif self.path == "/api/nearby-services":
+            # Proxy for Overpass API to avoid CORS issues
+            length = int(self.headers.get("Content-Length", 0))
+            body = json.loads(self.rfile.read(length)) if length else {}
+
+            lat = body.get("lat")
+            lon = body.get("lon")
+            radius = body.get("radius", 5000)
+
+            if lat is None or lon is None:
+                self.send_response(400)
+                self._cors()
+                self.end_headers()
+                self.wfile.write(b'{"error": "lat and lon required"}')
+                return
+
+            # Build Overpass query
+            categories = [
+                "amenity=hospital",
+                "amenity=police",
+                "amenity=fire_station",
+                "amenity=pharmacy",
+                "amenity=clinic"
+            ]
+            filters = "\n".join([f'node[{tag}](around:{radius},{lat},{lon});' for tag in categories])
+            query = f'[out:json][timeout:25];({filters});out body;'
+
+            try:
+                req = request.Request(
+                    "https://overpass-api.de/api/interpreter",
+                    data=f"data={parse.quote(query)}".encode(),
+                    headers={"User-Agent": "MargRakshak-TravelSafety/1.0"}
+                )
+                with request.urlopen(req, timeout=30) as response:
+                    data = response.read()
+                    self.send_response(200)
+                    self._cors()
+                    self.send_header("Content-Type", "application/json")
+                    self.end_headers()
+                    self.wfile.write(data)
+            except Exception as e:
+                print(f"Overpass error: {e}")
+                self.send_response(500)
+                self._cors()
+                self.send_header("Content-Type", "application/json")
+                self.end_headers()
+                self.wfile.write(json.dumps({"error": str(e)}).encode())
         else:
             self.send_response(404)
             self.end_headers()
