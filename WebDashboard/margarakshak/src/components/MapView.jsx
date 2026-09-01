@@ -46,6 +46,7 @@ function getInitials(name) {
 export default function MapView({
   devices,
   travelCards = [],
+  alerts = [],
   follow,
   setMapActions,
 }) {
@@ -56,6 +57,8 @@ export default function MapView({
   const markersRef = useRef({});
 
   const trailsRef = useRef({});
+
+  const alertMarkersRef = useRef({});
 
   const initializedRef = useRef(false);
 
@@ -268,6 +271,52 @@ export default function MapView({
       }
     }
   }, [devices, travelCards, follow]);
+
+  // Alert markers — one pulsing red pin per open/acknowledged alert that has
+  // a location. Cleared automatically once an alert is resolved.
+  useEffect(() => {
+    if (!leafletMap.current) return;
+    const map = leafletMap.current;
+
+    const active = alerts.filter(
+      (a) => a.status !== "resolved" && a.lat != null && a.lon != null
+    );
+    const activeIds = new Set(active.map((a) => a.id));
+
+    // Remove markers for alerts that resolved or dropped out of the feed
+    Object.keys(alertMarkersRef.current).forEach((id) => {
+      if (!activeIds.has(Number(id))) {
+        map.removeLayer(alertMarkersRef.current[id]);
+        delete alertMarkersRef.current[id];
+      }
+    });
+
+    active.forEach((a) => {
+      const latlng = [a.lat, a.lon];
+
+      if (!alertMarkersRef.current[a.id]) {
+        const icon = L.divIcon({
+          className: "",
+          html: `<div class="alert-marker"></div>`,
+          iconSize: [18, 18],
+          iconAnchor: [9, 9],
+        });
+
+        const marker = L.marker(latlng, { icon, zIndexOffset: 1000 }).addTo(map);
+
+        marker.bindPopup(
+          `<div style="font-family:'DM Sans',sans-serif;font-size:12px">
+            <div style="font-weight:700;color:#DC2626;margin-bottom:2px">${a.type}</div>
+            <div style="color:#6b7280">${new Date(a.created_at).toLocaleString()}</div>
+          </div>`
+        );
+
+        alertMarkersRef.current[a.id] = marker;
+      } else {
+        alertMarkersRef.current[a.id].setLatLng(latlng);
+      }
+    });
+  }, [alerts]);
 
   return (
     <div

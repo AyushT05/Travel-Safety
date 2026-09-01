@@ -7,6 +7,7 @@ import {
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons, Feather } from '@expo/vector-icons';
 import { supabase } from '../lib/supabase';
+import PanicButton from '../components/PanicButton';
 
 export default function HomeScreen({ user, onCreateCard, onStartTracking }) {
   const [cards, setCards]           = useState([]);
@@ -94,6 +95,10 @@ export default function HomeScreen({ user, onCreateCard, onStartTracking }) {
         }
         contentContainerStyle={{ padding: 20, paddingTop: 8, paddingBottom: 60 }}
       >
+        <View style={{ marginBottom: 16 }}>
+          <PanicButton user={user} />
+        </View>
+
         {/* Active journey banner */}
         {activeCard && (
           <TouchableOpacity

@@ -1,0 +1,170 @@
+.alerts-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(27, 67, 50, 0.25);
+  display: flex;
+  justify-content: flex-end;
+  z-index: 1000;
+}
+
+.alerts-panel {
+  width: 380px;
+  max-width: 92vw;
+  height: 100%;
+  background: #fff;
+  border-left: 1px solid #eae4d9;
+  display: flex;
+  flex-direction: column;
+  box-shadow: -8px 0 24px rgba(0, 0, 0, 0.08);
+}
+
+.alerts-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 18px 20px;
+  border-bottom: 1px solid #f0ebe3;
+}
+
+.alerts-panel-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: #1b4332;
+}
+
+.alerts-panel-close {
+  width: 30px;
+  height: 30px;
+  border-radius: 15px;
+  border: 1px solid #eae4d9;
+  background: #fafaf8;
+  color: #6b7c74;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.alerts-panel-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.alerts-empty {
+  color: #9e9484;
+  font-size: 13px;
+  text-align: center;
+  padding: 32px 12px;
+}
+
+.alert-item {
+  border: 1px solid #eae4d9;
+  border-left-width: 4px;
+  border-radius: 12px;
+  padding: 12px 14px;
+  background: #fafaf8;
+}
+
+.alert-item.severity-critical { border-left-color: #dc2626; }
+.alert-item.severity-warning  { border-left-color: #d97706; }
+.alert-item.severity-info     { border-left-color: #1d4ed8; }
+
+.alert-item-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 4px;
+}
+
+.alert-type {
+  font-size: 12px;
+  font-weight: 700;
+  color: #1a1a1a;
+}
+
+.alert-status-badge {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.3px;
+  text-transform: uppercase;
+  padding: 2px 8px;
+  border-radius: 10px;
+}
+
+.alert-status-badge.status-open         { background: #fee2e2; color: #dc2626; }
+.alert-status-badge.status-acknowledged { background: #fef3c7; color: #92400e; }
+.alert-status-badge.status-resolved     { background: #ecfdf5; color: #1b4332; }
+
+.alert-name { font-size: 13px; font-weight: 600; color: #1a1a1a; margin-bottom: 2px; }
+.alert-meta { font-size: 11px; color: #9e9484; margin-bottom: 4px; }
+.alert-message { font-size: 12px; color: #52796f; margin-bottom: 8px; }
+
+.alert-actions { display: flex; gap: 8px; }
+
+.alert-ack-btn,
+.alert-resolve-btn {
+  flex: 1;
+  font-size: 12px;
+  font-weight: 700;
+  padding: 7px 0;
+  border-radius: 8px;
+  cursor: pointer;
+  border: 1px solid #eae4d9;
+  background: #fff;
+  color: #52796f;
+}
+
+.alert-resolve-btn { background: #1b4332; border-color: #1b4332; color: #fff; }
+
+/* Header bell */
+.alerts-bell-btn {
+  position: relative;
+  width: 34px;
+  height: 34px;
+  border-radius: 17px;
+  border: 1.5px solid #eae4d9;
+  background: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  color: #1b4332;
+}
+
+.alerts-bell-count {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 3px;
+  border-radius: 8px;
+  background: #dc2626;
+  color: #fff;
+  font-size: 10px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Map alert marker (open, unresolved alerts only) */
+.alert-marker {
+  width: 18px;
+  height: 18px;
+  border-radius: 9px;
+  background: #dc2626;
+  border: 2px solid #fff;
+  box-shadow: 0 0 0 4px rgba(220, 38, 38, 0.35);
+  animation: alert-pulse 1.4s ease-in-out infinite;
+}
+
+@keyframes alert-pulse {
+  0%   { box-shadow: 0 0 0 4px rgba(220, 38, 38, 0.35); }
+  50%  { box-shadow: 0 0 0 9px rgba(220, 38, 38, 0.12); }
+  100% { box-shadow: 0 0 0 4px rgba(220, 38, 38, 0.35); }
+}

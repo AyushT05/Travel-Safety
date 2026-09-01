@@ -7,8 +7,7 @@ import { StatusBar } from 'expo-status-bar';
 import * as Location from 'expo-location';
 import { Ionicons, Feather } from '@expo/vector-icons';
 import { supabase } from '../lib/supabase';
-
-const SERVER = 'https://travel-safety.onrender.com';
+import PanicButton from '../components/PanicButton';
 
 export default function ActiveTracking({ user, card, onStop }) {
   const [isSharing, setIsSharing]       = useState(false);
@@ -74,13 +73,16 @@ export default function ActiveTracking({ user, card, onStop }) {
         };
         setLocationData(data);
         setUpdateCount(c => c + 1);
-        try {
-          await fetch(`${SERVER}/update-location`, {
-            method: 'POST', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(data),
-          });
-          setServerError(false);
-        } catch { setServerError(true); }
+        // Writes straight to Supabase (RLS requires user_id === auth.uid()),
+        // replacing the old unauthenticated POST to the Render server.
+        const { error } = await supabase.from('locations').insert({
+          user_id: user.id,
+          lat: pos.coords.latitude,
+          lon: pos.coords.longitude,
+          accuracy: pos.coords.accuracy,
+          speed: pos.coords.speed,
+        });
+        setServerError(!!error);
       }
     );
   }
@@ -106,6 +108,10 @@ export default function ActiveTracking({ user, card, onStop }) {
         </TouchableOpacity>
         <Text style={s.headerTitle}>Active Journey</Text>
         <View style={{ width: 40 }} />
+      </View>
+
+      <View style={{ paddingHorizontal: 20, marginBottom: 4 }}>
+        <PanicButton user={user} />
       </View>
 
       <ScrollView
