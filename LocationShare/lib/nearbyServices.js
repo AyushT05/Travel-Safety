@@ -1,85 +1,52 @@
 /**
- * Nearby Emergency Services — Nominatim (OpenStreetMap) Search API
+ * Nearby Emergency Services
  *
- * Uses Nominatim instead of Overpass to avoid CORS issues.
- * The same logic is duplicated in the web dashboard as
- * WebDashboard/margarakshak/src/utils/nearbyServices.js — keep the two in sync.
+ * Was calling Nominatim directly from the client (5 parallel requests per
+ * lookup). Two problems with that: Nominatim's public instance enforces a
+ * strict 1 request/second limit with no bulk/parallel use, so firing 5 at
+ * once gets intermittently rate-limited (the "sometimes works" symptom),
+ * and Nominatim is a name/address geocoder, not a spatial tag-query engine,
+ * so it can miss real amenities that don't textually match the search term
+ * even when it isn't rate-limited.
+ *
+ * Now calls a Supabase Edge Function backed by OpenStreetMap's Overpass API
+ * (the right tool for "everything tagged amenity=X within N metres"), with
+ * server-side caching so repeated lookups near the same spot don't even hit
+ * Overpass again. Same output shape as before, so NearbyServices.js doesn't
+ * need any changes.
  */
 
-const NOMINATIM_URL = 'https://nominatim.openstreetmap.org/search';
+import { supabase } from './supabase';
 
-const CATEGORIES = [
-  { key: 'hospital',     query: 'hospital',       label: 'Hospitals',        icon: 'medkit' },
-  { key: 'police',       query: 'police station', label: 'Police Stations',  icon: 'shield-checkmark' },
-  { key: 'fire_station', query: 'fire station',   label: 'Fire Stations',    icon: 'flame' },
-  { key: 'pharmacy',     query: 'pharmacy',       label: 'Pharmacies',       icon: 'medical' },
-  { key: 'clinic',       query: 'clinic',         label: 'Clinics',          icon: 'fitness' },
+export const CATEGORIES = [
+  { key: 'hospital',     label: 'Hospitals',       icon: 'medkit' },
+  { key: 'police',       label: 'Police Stations', icon: 'shield-checkmark' },
+  { key: 'fire_station', label: 'Fire Stations',   icon: 'flame' },
+  { key: 'pharmacy',     label: 'Pharmacies',      icon: 'medical' },
+  { key: 'clinic',       label: 'Clinics',         icon: 'fitness' },
 ];
 
 /**
- * Haversine distance in km between two [lat, lon] points.
- */
-function haversineKm(lat1, lon1, lat2, lon2) {
-  const R = 6371;
-  const toRad = (d) => (d * Math.PI) / 180;
-  const dLat = toRad(lat2 - lat1);
-  const dLon = toRad(lon2 - lon1);
-  const a =
-    Math.sin(dLat / 2) ** 2 +
-    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) ** 2;
-  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-}
-
-/**
- * Fetch nearby emergency services from Nominatim.
- *
  * @param {number} lat
  * @param {number} lon
- * @param {number} [radiusKm=5] — search radius in kilometres
  * @returns {Promise<Array<{category, label, icon, places: Array<{name, lat, lon, distanceKm}>}>>}
  */
-export async function fetchNearbyServices(lat, lon, radiusKm = 5) {
-  const results = await Promise.all(
-    CATEGORIES.map(async (cat) => {
-      try {
-        // Nominatim search with viewbox centered on location
-        const params = new URLSearchParams({
-          q: cat.query,
-          format: 'json',
-          limit: 20,
-          viewbox: `${lon - 0.1},${lat - 0.1},${lon + 0.1},${lat + 0.1}`,
-          bounded: 1,
-        });
+export async function fetchNearbyServices(lat, lon) {
+  const { data, error } = await supabase.functions.invoke('nearby-services', {
+    body: { lat, lon },
+  });
 
-        const res = await fetch(`${NOMINATIM_URL}?${params}`, {
-          headers: {
-            'User-Agent': 'MargRakshak-TravelSafety/1.0',
-          },
-        });
+  if (error) throw error;
 
-        if (!res.ok) throw new Error(`${res.status}`);
-        const data = await res.json();
-
-        const places = data
-          .map((place) => ({
-            name: place.display_name?.split(',')[0] || 'Unnamed',
-            lat: parseFloat(place.lat),
-            lon: parseFloat(place.lon),
-            distanceKm: haversineKm(lat, lon, parseFloat(place.lat), parseFloat(place.lon)),
-          }))
-          .filter((p) => p.distanceKm <= radiusKm)
-          .sort((a, b) => a.distanceKm - b.distanceKm)
-          .slice(0, 10);
-
-        return { category: cat.key, label: cat.label, icon: cat.icon, places };
-      } catch (e) {
-        console.warn(`Failed to fetch ${cat.label}:`, e);
-        return { category: cat.key, label: cat.label, icon: cat.icon, places: [] };
-      }
-    })
-  );
-
-  return results;
+  return CATEGORIES.map((cat) => {
+    const places = (data?.categories?.[cat.key] || []).map((p) => ({
+      name: p.name,
+      lat: p.lat,
+      lon: p.lon,
+      distanceKm: p.distance_m / 1000,
+      address: p.address,
+      phone: p.phone,
+    }));
+    return { category: cat.key, label: cat.label, icon: cat.icon, places };
+  });
 }
-
-export { CATEGORIES };

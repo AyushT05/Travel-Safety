@@ -162,7 +162,6 @@ export default function ActiveTracking({ user, card, onStop }) {
         {isSharing && locationData && (
           <View style={s.statsRow}>
             <StatCard icon="crosshair" label="Accuracy" value={`${locationData.accuracy.toFixed(0)} m`} />
-            <StatCard icon="refresh-cw" label="Updates" value={`${updateCount}`} />
           </View>
         )}
 

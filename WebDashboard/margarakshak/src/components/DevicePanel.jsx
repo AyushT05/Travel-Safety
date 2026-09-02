@@ -1,4 +1,4 @@
-export default function DevicePanel({ device, name, travelCards = [] }) {
+export default function DevicePanel({ device, name, travelCards = [], onOpenNearby }) {
   if (!device) return null;
   const card = travelCards.find(c => c.user_id === name);
   const displayName = card?.full_name || name?.slice(0, 12) + "…";
@@ -26,10 +26,22 @@ export default function DevicePanel({ device, name, travelCards = [] }) {
             </div>
           )}
         </div>
-        <div className="panel-metrics">
-          <Metric label="Speed" value={device.speed?.toFixed(1) ?? "—"} unit="km/h" />
-          <Metric label="Accuracy" value={device.accuracy?.toFixed(0) ?? "—"} unit="m" />
-          <Metric label="Updates" value={device.updates ?? "—"} />
+        <div className="panel-right">
+          <div className="panel-metrics">
+            <Metric label="Speed" value={device.speed?.toFixed(1) ?? "—"} unit="km/h" />
+            <Metric label="Accuracy" value={device.accuracy?.toFixed(0) ?? "—"} unit="m" />
+            <Metric label="Updates" value={device.updates ?? "—"} />
+          </div>
+
+          <button
+            className="nearby-trigger-btn"
+            onClick={() => onOpenNearby?.({ lat: device.lastLatlng?.[0], lon: device.lastLatlng?.[1], name: displayName })}
+          >
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/>
+            </svg>
+            Nearby Help
+          </button>
         </div>
       </div>
     </div>

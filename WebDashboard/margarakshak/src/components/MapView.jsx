@@ -68,10 +68,19 @@ export default function MapView({
 
     const map = L.map(mapRef.current, {
       zoomControl: false,
+      attributionControl: false,
     }).setView([20, 78], 5);
 
+    // bottomright is where DevicePanel's metrics + Nearby Help button live,
+    // and topright is already taken by the Follow/Fit all/Clear trails
+    // cluster (.map-controls), so zoom goes topleft, the one empty corner,
+    // and attribution moves to bottomleft to stay out of DevicePanel's way.
     L.control.zoom({
-      position: "bottomright",
+      position: "topleft",
+    }).addTo(map);
+
+    L.control.attribution({
+      position: "bottomleft",
     }).addTo(map);
 
     L.tileLayer(

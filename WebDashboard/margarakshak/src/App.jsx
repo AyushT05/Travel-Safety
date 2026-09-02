@@ -27,6 +27,9 @@ export default function App() {
   const [showAlertsPanel, setShowAlertsPanel] =
     useState(false);
 
+  const [nearbyTarget, setNearbyTarget] =
+    useState(null);
+
   const [selected, setSelected] =
     useState(null);
 
@@ -142,11 +145,7 @@ export default function App() {
             device={devices[selected]}
             name={selected}
             travelCards={travelCards}
-          />
-
-          <NearbyServicesPanel
-            lat={devices[selected]?.lastLatlng?.[0]}
-            lon={devices[selected]?.lastLatlng?.[1]}
+            onOpenNearby={setNearbyTarget}
           />
         </div>
       </div>
@@ -169,6 +168,16 @@ export default function App() {
           onAcknowledge={acknowledge}
           onResolve={resolve}
           onClose={() => setShowAlertsPanel(false)}
+        />
+      )}
+
+      {/* Nearby emergency services */}
+      {nearbyTarget && (
+        <NearbyServicesPanel
+          lat={nearbyTarget.lat}
+          lon={nearbyTarget.lon}
+          name={nearbyTarget.name}
+          onClose={() => setNearbyTarget(null)}
         />
       )}
     </>
