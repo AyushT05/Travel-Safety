@@ -983,10 +983,14 @@ aside {
 
 .nearby-header:hover { background: var(--bg); }
 
-.nearby-header-left { display: flex; align-items: center; gap: 8px; }
-.nearby-header-right { display: flex; align-items: center; gap: 8px; }
+.nearby-header-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--accent);
+}
 
-.nearby-icon { font-size: 16px; }
+.nearby-header-right { display: flex; align-items: center; gap: 8px; }
 
 .nearby-title {
   font-size: 14px;
@@ -1004,13 +1008,12 @@ aside {
 }
 
 .nearby-chevron {
-  font-size: 14px;
   color: var(--muted);
   transition: transform 0.2s;
 }
 
 .nearby-chevron.open { transform: rotate(180deg); }
-.nearby-chevron.small { font-size: 12px; }
+.nearby-chevron.small { width: 14px; height: 14px; }
 
 .nearby-body {
   padding: 0 24px 16px;
@@ -1052,6 +1055,8 @@ aside {
   margin-bottom: 8px;
 }
 
+.nearby-error svg { flex-shrink: 0; }
+
 .nearby-retry {
   margin-left: auto;
   padding: 4px 10px;
@@ -1063,7 +1068,10 @@ aside {
   font-weight: 600;
   cursor: pointer;
   font-family: 'DM Sans', sans-serif;
+  transition: background 0.15s;
 }
+
+.nearby-retry:hover { background: #B91C1C; }
 
 .nearby-cat {
   margin-top: 8px;
@@ -1087,7 +1095,14 @@ aside {
 
 .nearby-cat-header:hover { opacity: 0.7; }
 
-.nearby-cat-icon { font-size: 16px; }
+.nearby-cat-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  flex-shrink: 0;
+}
 
 .nearby-cat-label {
   font-size: 13px;
@@ -1109,15 +1124,17 @@ aside {
   font-size: 12px;
   color: var(--muted);
   font-style: italic;
-  padding: 6px 0 8px 24px;
+  padding: 6px 0 8px 32px;
 }
 
 .nearby-place {
   display: flex;
   align-items: center;
-  padding: 10px 0 10px 24px;
+  padding: 10px 0 10px 32px;
   border-bottom: 1px solid var(--border-soft);
 }
+
+.nearby-place:last-child { border-bottom: none; }
 
 .nearby-place-info { flex: 1; min-width: 0; margin-right: 12px; }
 
@@ -1146,7 +1163,6 @@ aside {
   align-items: center;
   justify-content: center;
   text-decoration: none;
-  font-size: 14px;
   transition: all 0.15s;
   flex-shrink: 0;
 }
@@ -1162,7 +1178,7 @@ aside {
   color: var(--accent);
   font-size: 12px;
   font-weight: 600;
-  padding: 6px 0 8px 24px;
+  padding: 6px 0 8px 32px;
   cursor: pointer;
   font-family: 'DM Sans', sans-serif;
 }
@@ -1182,6 +1198,10 @@ aside {
   font-family: 'DM Sans', sans-serif;
   transition: all 0.15s;
   width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
 }
 
 .nearby-refresh:hover { background: var(--accent-light); border-color: var(--accent); }

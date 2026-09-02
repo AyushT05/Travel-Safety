@@ -98,8 +98,8 @@ export default function NearbyServices({ lat, lon }) {
       {/* Header — always visible */}
       <TouchableOpacity style={s.header} onPress={toggleExpand} activeOpacity={0.8}>
         <View style={s.headerLeft}>
-          <Ionicons name="location" size={16} color="#1B4332" />
-          <Text style={s.headerTitle}>Nearby Emergency Services</Text>
+          <Ionicons name="medkit-outline" size={16} color="#1B4332" />
+          <Text style={s.headerTitle}>Emergency Services Nearby</Text>
         </View>
         <View style={s.headerRight}>
           {totalCount > 0 && (
