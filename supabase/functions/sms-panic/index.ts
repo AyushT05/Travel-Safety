@@ -63,14 +63,23 @@ interface SMSWebhookPayload {
   To?: string;
   Body?: string;
   MessageSid?: string;
+
+  // android-sms-gateway format (capcom6/android-sms-gateway)
+  message?: string;
+  phoneNumber?: string;
+  receivedAt?: string;
+  simNumber?: number;
 }
 
 function normalizeSMSPayload(raw: SMSWebhookPayload) {
   return {
-    from: raw.from || raw.From,
+    // android-sms-gateway uses 'phoneNumber' and 'message'
+    // Twilio uses 'From' and 'Body'
+    // Generic uses 'from' and 'text'
+    from: raw.from || raw.From || raw.phoneNumber,
     to: raw.to || raw.To,
-    text: raw.text || raw.Body,
-    timestamp: raw.timestamp,
+    text: raw.text || raw.Body || raw.message,
+    timestamp: raw.timestamp || raw.receivedAt,
   };
 }
 

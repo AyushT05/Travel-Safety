@@ -25,10 +25,10 @@ This repo implements the core traveller-monitoring loop of that vision: a mobile
 | Digital Tourist ID (blockchain, KYC, entry-point issuance) | Partial — traveller profile + ID document exist as a **Supabase-backed travel card**, not blockchain-based, not issued at physical entry points |
 | Tourist Safety Score | Not implemented |
 | Geo-fencing alerts for high-risk zones | Not implemented |
-| Panic button with live sharing to police/contacts | Not implemented — location sharing exists, but it's manually started/stopped by the traveller, not an SOS trigger |
+| Panic button with live sharing to police/contacts | **Implemented** — mobile app panic button + **SMS fallback for zero-connectivity areas** |
 | Opt-in real-time tracking for families/law enforcement | Implemented — live GPS streaming, dashboard viewing |
 | AI-based anomaly detection (drop-offs, inactivity, route deviation) | Not implemented |
-| Police/tourism department dashboard with heat maps | Partial — live map + traveller list + travel card lookup exist; no heat maps, no alert history |
+| Police/tourism department dashboard with heat maps | Partial — live map + traveller list + travel card lookup exist; no heat maps, alert history via alerts panel |
 | Automated E-FIR generation | Not implemented |
 | IoT wearable integration | Not implemented |
 | Multilingual support | Not implemented (English only) |
@@ -49,8 +49,37 @@ This repo implements the core traveller-monitoring loop of that vision: a mobile
 .
 ├── WebDashboard/margarakshak/   Web dashboard (React + Vite)
 ├── LocationShare/               Mobile app (React Native / Expo)
+├── supabase/
+│   ├── functions/
+│   │   ├── nearby-services/     Edge Function for emergency services lookup
+│   │   └── sms-panic/           Edge Function for SMS-based panic alerts
+│   └── migrations/              Database schema and migrations
+├── docs/                        Documentation
+│   ├── SMS_PANIC_SETUP.md       Full SMS panic setup guide (Twilio/AWS/etc)
+│   ├── SMS_PANIC_ANDROID_GATEWAY_SETUP.md  Setup guide for android-sms-gateway
+│   └── SMS_PANIC_QUICK_START.md Quick reference for SMS panic feature
 ├── server.py                    Legacy in-memory location relay
 ├── live_map.html, mobile.html   Legacy standalone prototype pages
+├── test-sms-webhook.sh/.bat     Test scripts for SMS panic webhook
 ├── location.json                Sample/scratch location data
 ├── Procfile, requirements.txt   Deployment config for server.py
 ```
+
+## Key Features
+
+### Emergency Alert System
+- **Mobile panic button** (in-app): Immediate SOS with current GPS location
+- **SMS panic fallback** (zero-connectivity): Send "SOS" via SMS when no mobile data available
+  - Uses last known GPS location
+  - Works with any SMS gateway (Twilio, AWS SNS, or android-sms-gateway)
+  - Integrates with same alert system (dashboard, realtime notifications, acknowledge/resolve flow)
+- **Nearby emergency services**: Police stations, hospitals, fire stations within 5km
+- **Realtime dashboard monitoring**: Admins see all alerts, acknowledge and resolve them
+- **Alert history and audit logging**: Complete trail of all emergency events
+
+### Location Tracking
+- **Live GPS streaming**: Real-time position updates every few seconds
+- **Map visualization**: Leaflet-based dashboard with traveler pins and trails
+- **Travel cards**: Digital identity with emergency contacts, trip details, document upload
+
+See `docs/SMS_PANIC_ANDROID_GATEWAY_SETUP.md` for SMS panic setup with zero gateway costs using android-sms-gateway.
