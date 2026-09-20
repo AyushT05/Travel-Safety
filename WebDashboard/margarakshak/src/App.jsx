@@ -9,6 +9,7 @@ import UserIdPanel from "./components/UserIdPanel";
 import AlertsPanel from "./components/AlertsPanel";
 
 import useDevices from "./hooks/useDevices";
+import useActivityState from "./hooks/useActivityState";
 import useAlerts from "./hooks/useAlerts";
 
 import { useState, useEffect } from "react";
@@ -22,6 +23,7 @@ export default function App() {
 
   // Only devices now
   const { devices } = useDevices();
+  const { activity } = useActivityState();
   const { alerts, openCount, acknowledge, resolve } = useAlerts();
 
   const [showAlertsPanel, setShowAlertsPanel] =
@@ -145,6 +147,7 @@ export default function App() {
             device={devices[selected]}
             name={selected}
             travelCards={travelCards}
+            activity={activity[selected]}
             onOpenNearby={setNearbyTarget}
           />
         </div>

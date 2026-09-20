@@ -1,13 +1,45 @@
-export default function DevicePanel({ device, name, travelCards = [], onOpenNearby }) {
+const RISK_LEVELS = [
+  { max: 0.05, label: "Critical", color: "#dc2626" },
+  { max: 0.10, label: "Concern", color: "#ea580c" },
+  { max: 0.25, label: "Watch", color: "#ca8a04" },
+  { max: Infinity, label: "Normal", color: "#16a34a" },
+];
+
+function riskLevel(tailProbability) {
+  if (tailProbability === undefined || tailProbability === null) return null;
+  return RISK_LEVELS.find((level) => tailProbability < level.max) ?? RISK_LEVELS[RISK_LEVELS.length - 1];
+}
+
+export default function DevicePanel({ device, name, travelCards = [], activity, onOpenNearby }) {
   if (!device) return null;
   const card = travelCards.find(c => c.user_id === name);
   const displayName = card?.full_name || name?.slice(0, 12) + "…";
+  const risk = riskLevel(activity?.tailProbability);
 
   return (
     <div className="device-panel visible">
       <div className="panel-row">
         <div className="panel-left">
-          <div className="panel-name">{displayName}</div>
+          <div className="panel-name">
+            {displayName}
+            {risk && (
+              <span
+                className="panel-risk-badge"
+                style={{
+                  marginLeft: 8,
+                  padding: "2px 8px",
+                  borderRadius: 999,
+                  fontSize: 11,
+                  fontWeight: 600,
+                  color: "#fff",
+                  backgroundColor: risk.color,
+                }}
+                title={`Tail probability: ${activity.tailProbability}`}
+              >
+                {risk.label}
+              </span>
+            )}
+          </div>
           <div className="panel-coords">
             <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
@@ -31,6 +63,8 @@ export default function DevicePanel({ device, name, travelCards = [], onOpenNear
             <Metric label="Speed" value={device.speed?.toFixed(1) ?? "—"} unit="km/h" />
             <Metric label="Accuracy" value={device.accuracy?.toFixed(0) ?? "—"} unit="m" />
             <Metric label="Updates" value={device.updates ?? "—"} />
+            <Metric label="Activity" value={activity?.currentState ?? "—"} />
+            <Metric label="Duration" value={activity?.durationMinutes ?? "—"} unit="min" />
           </div>
 
           <button
