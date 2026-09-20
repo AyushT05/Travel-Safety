@@ -1,3 +1,5 @@
+import { findCurrentCard } from "../utils/helpers";
+
 const RISK_LEVELS = [
   { max: 0.05, label: "Critical", color: "#dc2626" },
   { max: 0.10, label: "Concern", color: "#ea580c" },
@@ -12,7 +14,7 @@ function riskLevel(tailProbability) {
 
 export default function DevicePanel({ device, name, travelCards = [], activity, onOpenNearby }) {
   if (!device) return null;
-  const card = travelCards.find(c => c.user_id === name);
+  const card = findCurrentCard(travelCards, name);
   const displayName = card?.full_name || name?.slice(0, 12) + "…";
   const risk = riskLevel(activity?.tailProbability);
 

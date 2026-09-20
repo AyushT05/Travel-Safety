@@ -122,6 +122,7 @@ export default function App() {
             travelCards={travelCards}
             alerts={alerts}
             follow={follow}
+            selected={selected}
             setMapActions={
               setMapActions
             }

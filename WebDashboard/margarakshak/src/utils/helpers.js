@@ -42,3 +42,35 @@ export function haversineKm(a, b) {
 
   return R * 2 * Math.atan2(Math.sqrt(s), Math.sqrt(1 - s));
 }
+
+// Picks the ONE travel card that actually represents "now" for this user,
+// instead of just the first match in the array. Without this, a user with
+// both an old, finished card and a new active one would show whichever
+// happened to come first in the query result (most Supabase queries here
+// have no explicit .order(), so that's effectively arbitrary), which is
+// exactly the kind of stale-data mixup that made a new trip look like it
+// was showing the previous trip's details.
+//
+// Same isActive/isUpcoming logic Sidebar.jsx already uses for its status
+// badge, centralized here so MapView, DevicePanel, and Sidebar can't drift
+// out of agreement about which card is "the current one" for a user.
+export function findCurrentCard(travelCards, userId) {
+  const today = new Date().toISOString().split("T")[0];
+  const cards = travelCards.filter(c => c.user_id === userId);
+  if (cards.length === 0) return null;
+  if (cards.length === 1) return cards[0];
+
+  const active = cards.find(c => c.start_date <= today && c.end_date >= today);
+  if (active) return active;
+
+  // No card spans today (all finished, or all upcoming): prefer the
+  // closest upcoming one, else the most recently finished one.
+  const upcoming = cards
+    .filter(c => c.start_date > today)
+    .sort((a, b) => a.start_date.localeCompare(b.start_date));
+  if (upcoming.length > 0) return upcoming[0];
+
+  return cards
+    .slice()
+    .sort((a, b) => b.end_date.localeCompare(a.end_date))[0];
+}

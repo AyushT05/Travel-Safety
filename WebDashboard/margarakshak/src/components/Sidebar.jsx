@@ -1,6 +1,7 @@
 import { useState } from "react";
 import DeviceCard from "./DeviceCard";
 import { useAuth } from "../context/AuthContext";
+import { findCurrentCard } from "../utils/helpers";
 
 export default function Sidebar({
   devices,
@@ -30,7 +31,7 @@ export default function Sidebar({
     const q = search.toLowerCase();
 
     visibleNames = visibleNames.filter((n) => {
-      const card = travelCards.find((c) => c.user_id === n);
+      const card = findCurrentCard(travelCards, n);
 
       return (
         n.toLowerCase().includes(q) ||
@@ -49,14 +50,14 @@ export default function Sidebar({
   function handleSelect(name) {
     onSelect(name);
 
-    const card = travelCards.find((c) => c.user_id === name);
+    const card = findCurrentCard(travelCards, name);
 
     setExpandedCard(card || null);
   }
 
   // Get display name for a device
   function getDisplayName(deviceId) {
-    const card = travelCards.find((c) => c.user_id === deviceId);
+    const card = findCurrentCard(travelCards, deviceId);
 
     return card?.full_name || null;
   }

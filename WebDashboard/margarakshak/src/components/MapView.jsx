@@ -4,7 +4,7 @@ import {
 } from "react";
 
 import L from "leaflet";
-import { colorFor } from "../utils/helpers";
+import { colorFor, findCurrentCard } from "../utils/helpers";
 
 function makeLiveIcon(color, initials) {
   return L.divIcon({
@@ -48,6 +48,7 @@ export default function MapView({
   travelCards = [],
   alerts = [],
   follow,
+  selected,
   setMapActions,
 }) {
   const mapRef = useRef(null);
@@ -57,6 +58,13 @@ export default function MapView({
   const markersRef = useRef({});
 
   const trailsRef = useRef({});
+
+  // Tracks which travel_card_id's trail is currently drawn for each device
+  // id, so a trip boundary can be detected and the trail reset even if the
+  // dashboard tab has stayed open the whole time (the same user_id can
+  // legitimately move from one finished trip straight into a brand new
+  // one without the page ever reloading).
+  const activeCardRef = useRef({});
 
   const alertMarkersRef = useRef({});
 
@@ -146,13 +154,67 @@ export default function MapView({
 
     const map = leafletMap.current;
 
+    // Builds the popup HTML for a device's marker. Extracted into its own
+    // function so it can be called both when a marker is first created AND
+    // whenever the device's current card changes afterward — previously
+    // this was inlined into marker creation only, so the popup's name,
+    // mobile number, and trip dates were frozen at whatever they were the
+    // very first time that marker was drawn, and never updated again even
+    // as findCurrentCard started returning a different (newer) card.
+    function popupHtml(name, card, id) {
+      return `
+        <div style="font-family:'DM Sans',sans-serif;padding:4px 0;min-width:160px">
+          <div style="font-weight:700;font-size:14px;color:#1B4332;margin-bottom:4px">
+            ${name}
+          </div>
+
+          ${
+            card
+              ? `
+            <div style="font-size:12px;color:#6b7280;margin-bottom:2px">
+              ${card.mobile || ""}
+            </div>
+
+            <div style="font-size:12px;color:#6b7280">
+              ${card.start_date} → ${card.end_date}
+            </div>
+          `
+              : `
+            <div style="font-size:11px;color:#9ca3af;font-family:monospace">
+              ${id}
+            </div>
+          `
+          }
+        </div>
+      `;
+    }
+
     Object.entries(devices).forEach(
       ([id, d]) => {
         if (!d.lastLatlng) return;
 
-        const card = travelCards.find(
-          (c) => c.user_id === id
-        );
+        const card = findCurrentCard(travelCards, id);
+
+        // Trip-boundary check: if this device's active card has changed
+        // since we last drew its trail (including going from "had a card"
+        // to "has a different one"), the old trail belongs to a different
+        // trip and must not visually connect into the new one. Recreate a
+        // fresh trail seeded at the CURRENT point immediately, rather than
+        // just deleting it, so the update branch below always has a trail
+        // to append to.
+        const cardKey = card?.id ?? null;
+        const tripChanged =
+          activeCardRef.current[id] !== undefined && activeCardRef.current[id] !== cardKey;
+        if (tripChanged) {
+          const oldTrail = trailsRef.current[id];
+          if (oldTrail) map.removeLayer(oldTrail);
+          trailsRef.current[id] = L.polyline([d.lastLatlng], {
+            color: colorFor(id),
+            weight: 4,
+            opacity: 0.45,
+          }).addTo(map);
+        }
+        activeCardRef.current[id] = cardKey;
 
         const name =
           card?.full_name ||
@@ -176,31 +238,7 @@ export default function MapView({
           ).addTo(map);
 
           marker.bindPopup(
-            `
-            <div style="font-family:'DM Sans',sans-serif;padding:4px 0;min-width:160px">
-              <div style="font-weight:700;font-size:14px;color:#1B4332;margin-bottom:4px">
-                ${name}
-              </div>
-
-              ${
-                card
-                  ? `
-                <div style="font-size:12px;color:#6b7280;margin-bottom:2px">
-                  ${card.mobile || ""}
-                </div>
-
-                <div style="font-size:12px;color:#6b7280">
-                  ${card.start_date} → ${card.end_date}
-                </div>
-              `
-                  : `
-                <div style="font-size:11px;color:#9ca3af;font-family:monospace">
-                  ${id}
-                </div>
-              `
-              }
-            </div>
-          `,
+            popupHtml(name, card, id),
             {
               maxWidth: 220,
             }
@@ -209,16 +247,20 @@ export default function MapView({
           markersRef.current[id] =
             marker;
 
-          // Create initial trail
-          trailsRef.current[id] =
-            L.polyline(
-              [d.lastLatlng],
-              {
-                color,
-                weight: 4,
-                opacity: 0.45,
-              }
-            ).addTo(map);
+          // Trail was already created above if this is a fresh trip
+          // boundary; otherwise this is a genuinely brand-new device,
+          // seed its trail here.
+          if (!trailsRef.current[id]) {
+            trailsRef.current[id] =
+              L.polyline(
+                [d.lastLatlng],
+                {
+                  color,
+                  weight: 4,
+                  opacity: 0.45,
+                }
+              ).addTo(map);
+          }
         } else {
           // Update marker
           markersRef.current[id].setLatLng(
@@ -230,6 +272,10 @@ export default function MapView({
               color,
               initials
             )
+          );
+
+          markersRef.current[id].setPopupContent(
+            popupHtml(name, card, id)
           );
 
           // Update trail
@@ -280,6 +326,19 @@ export default function MapView({
       }
     }
   }, [devices, travelCards, follow]);
+
+  // Zoom to the selected device whenever a sidebar card is clicked. This is
+  // deliberately its own effect, keyed only on `selected` (not on every
+  // `devices` update), so it fires exactly once per click rather than
+  // re-zooming on every incoming GPS ping for that device.
+  useEffect(() => {
+    if (!leafletMap.current || !selected) return;
+    const device = devices[selected];
+    if (!device?.lastLatlng) return;
+
+    leafletMap.current.flyTo(device.lastLatlng, 16, { duration: 0.8 });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selected]);
 
   // Alert markers — one pulsing red pin per open/acknowledged alert that has
   // a location. Cleared automatically once an alert is resolved.

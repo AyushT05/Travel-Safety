@@ -76,8 +76,14 @@ export default function ActiveTracking({ user, card, onStop }) {
         setUpdateCount(c => c + 1);
         // Writes straight to Supabase (RLS requires user_id === auth.uid()),
         // replacing the old unauthenticated POST to the Render server.
+        // travel_card_id scopes this ping to THIS trip specifically — without
+        // it, a new trip's pings are indistinguishable from an old, finished
+        // trip's pings once both share the same user_id, which is exactly
+        // what was causing old trips' map trails and activity state to bleed
+        // into new ones.
         const { error } = await supabase.from('locations').insert({
           user_id: user.id,
+          travel_card_id: card.id,
           lat: pos.coords.latitude,
           lon: pos.coords.longitude,
           accuracy: pos.coords.accuracy,
