@@ -1,14 +1,27 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, ScrollView,
-  StyleSheet, ActivityIndicator, Platform, Alert,
+  StyleSheet, ActivityIndicator, Platform, Alert, Modal,
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import * as DocumentPicker from 'expo-document-picker';
 import { Ionicons, Feather } from '@expo/vector-icons';
+import DateTimePicker from '@react-native-community/datetimepicker';
+import * as ImageManipulator from 'expo-image-manipulator';
 import { supabase } from '../lib/supabase';
+import { checkIdNumberFormat } from '../utils/idValidation';
 
 const STEPS = ['Notice', 'Details', 'Trip', 'Contacts'];
+
+function toDbDate(d) {
+  if (!d) return '';
+  return d.toISOString().split('T')[0];
+}
+
+function toDisplayDate(d) {
+  if (!d) return 'Select date';
+  return d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
+}
 
 export default function CreateTravelCard({ user, onDone, onBack }) {
   const [step, setStep]     = useState(0);
@@ -18,9 +31,31 @@ export default function CreateTravelCard({ user, onDone, onBack }) {
   const [mobile, setMobile]         = useState('');
   const [docType, setDocType]       = useState('');
   const [docFile, setDocFile]       = useState(null);
-  const [startDate, setStartDate]   = useState('');
-  const [endDate, setEndDate]       = useState('');
-  const [places, setPlaces]         = useState(['']);
+  const [idNumber, setIdNumber]     = useState('');
+
+  // { status: 'idle' | 'checking' | 'done' | 'error', verdict?, confidence?,
+  //   reasoning?, nameMatch?, message? }
+  const [verification, setVerification]     = useState({ status: 'idle' });
+  const [verifyOverride, setVerifyOverride] = useState(false);
+
+  const [startDate, setStartDate]         = useState(null);
+  const [endDate, setEndDate]             = useState(null);
+  const [showStartPicker, setShowStartPicker] = useState(false);
+  const [showEndPicker, setShowEndPicker]     = useState(false);
+
+  // Trip structure: start point and final destination are required and
+  // always occupy the first/last position; intermediate stops are optional.
+  // On submit these get flattened into one ordered `places` array —
+  // [start, ...waypoints, destination] — which is exactly the shape every
+  // other screen (Sidebar, MapView, DevicePanel) already expects and
+  // displays as "A -> B -> C", so nothing downstream needs to change. It's
+  // also exactly the expected-route data the anomaly-detection pipeline
+  // needs to know a stop at one of these places is planned, not a
+  // deviation.
+  const [startPoint, setStartPoint]             = useState('');
+  const [finalDestination, setFinalDestination] = useState('');
+  const [waypoints, setWaypoints]               = useState([]);
+
   const [companions, setCompanions] = useState([{ name: '', phone: '' }]);
   const [emergency, setEmergency]   = useState([
     { name: '', phone: '' },
@@ -29,9 +64,102 @@ export default function CreateTravelCard({ user, onDone, onBack }) {
   ]);
 
   async function pickDocument() {
-    const result = await DocumentPicker.getDocumentAsync({ type: ['image/*', 'application/pdf'] });
-    if (!result.canceled && result.assets?.[0]) setDocFile(result.assets[0]);
+    // copyToCacheDirectory must be explicit, not left to the default —
+    // Expo's own docs warn that without it, expo-file-system can fail to
+    // read the picked file immediately afterward (exactly the "isn't
+    // readable" IOException this was hitting), because the copy into the
+    // app's cache isn't guaranteed to have finished by the time
+    // getDocumentAsync's promise resolves otherwise.
+    const result = await DocumentPicker.getDocumentAsync({
+      type: ['image/*', 'application/pdf'],
+      copyToCacheDirectory: true,
+    });
+    if (!result.canceled && result.assets?.[0]) {
+      setDocFile(result.assets[0]);
+      setVerification({ status: 'idle' });
+      setVerifyOverride(false);
+    }
   }
+
+  // Re-checks automatically whenever the picked file OR the declared
+  // document type changes (so switching "Aadhaar" to "Passport" after
+  // already uploading re-runs the check against the new claim).
+  // Re-checks when the file, declared type, or declared ID number changes.
+  // Debounced because each call is a real, metered API request and the ID
+  // number changes on every keystroke.
+  useEffect(() => {
+    if (!docFile || !docType) return;
+    const timeout = setTimeout(() => verifyDocument(), 800);
+    return () => clearTimeout(timeout);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [docFile, docType, idNumber]);
+
+  async function verifyDocument() {
+    setVerification({ status: 'checking' });
+    try {
+      let sourceUri = docFile.uri;
+      let sourceMimeType = docFile.mimeType;
+
+      // Shrink images before sending. A full-resolution phone photo can be
+      // several MB, which is the likely cause of the intermittent "non-2xx"
+      // failures (request size limits). PDFs are rendered server-side
+      // instead. fetch().blob() is used rather than expo-file-system because
+      // that module could not read Expo Go's DocumentPicker cache URIs.
+      if (sourceMimeType !== 'application/pdf') {
+        const manipulated = await ImageManipulator.manipulateAsync(
+          docFile.uri,
+          [{ resize: { width: 1600 } }],
+          { compress: 0.7, format: ImageManipulator.SaveFormat.JPEG }
+        );
+        sourceUri = manipulated.uri;
+        sourceMimeType = 'image/jpeg';
+      }
+
+      const response = await fetch(sourceUri);
+      const blob = await response.blob();
+      const base64 = await new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onerror = reject;
+        reader.onload = () => resolve(reader.result.split(',')[1]);
+        reader.readAsDataURL(blob);
+      });
+
+      const { data, error } = await supabase.functions.invoke('verify-document', {
+        body: {
+          imageBase64: base64,
+          mimeType: sourceMimeType,
+          docType,
+          fullName,
+          declaredIdNumber: idNumber,
+        },
+      });
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      setVerification({ status: 'done', ...data });
+    } catch (e) {
+      // The real reason lives in e.context (the response body), not in
+      // e.message, which is only the generic "non-2xx" wrapper.
+      if (e?.context?.json) {
+        e.context.json().then(
+          (body) => console.error('verifyDocument failed, server said:', body),
+          () => console.error('verifyDocument failed:', e)
+        );
+      } else {
+        console.error('verifyDocument failed:', e);
+      }
+      // Fail open: a hiccup in the automatic check is not evidence the
+      // document is invalid.
+      setVerification({
+        status: 'error',
+        message: 'Automatic check unavailable right now -- continuing without it.',
+      });
+    }
+  }
+
+  const verificationBlocksContinue =
+    verification.status === 'done' &&
+    (verification.verdict === 'likely_invalid' || verification.idNumberMatch === false) &&
+    !verifyOverride;
 
   async function handleSubmit() {
     const validEmergency = emergency.filter(c => c.name.trim() && c.phone.trim());
@@ -50,11 +178,20 @@ export default function CreateTravelCard({ user, onDone, onBack }) {
           .from('travel-documents').upload(path, blob, { contentType: docFile.mimeType });
         if (!uploadError) documentUrl = path;
       }
+
+      const places = [startPoint.trim(), ...waypoints.map(w => w.trim()).filter(Boolean), finalDestination.trim()]
+        .filter(Boolean);
+
       const { error } = await supabase.from('travel_cards').insert({
         user_id: user.id, full_name: fullName, mobile,
         document_type: docType, document_url: documentUrl,
-        start_date: startDate, end_date: endDate,
-        places: places.filter(p => p.trim()),
+        id_number: idNumber.trim() || null,
+        document_id_number_match: verification.status === 'done' ? (verification.idNumberMatch ?? null) : null,
+        document_verdict: verification.status === 'done' ? verification.verdict : null,
+        document_confidence: verification.status === 'done' ? verification.confidence : null,
+        document_reasoning: verification.status === 'done' ? verification.reasoning : null,
+        start_date: toDbDate(startDate), end_date: toDbDate(endDate),
+        places,
         companions: companions.filter(c => c.name.trim()),
         emergency_contacts: validEmergency,
         disclaimer_accepted: true, status: 'upcoming',
@@ -102,7 +239,7 @@ export default function CreateTravelCard({ user, onDone, onBack }) {
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
-        {/* STEP 0 — Disclaimer */}
+        {/* STEP 0 -- Disclaimer */}
         {step === 0 && (
           <View>
             <View style={s.disclaimerIconWrap}>
@@ -137,7 +274,7 @@ export default function CreateTravelCard({ user, onDone, onBack }) {
           </View>
         )}
 
-        {/* STEP 1 — Personal details */}
+        {/* STEP 1 -- Personal details */}
         {step === 1 && (
           <View>
             <Text style={s.pageTitle}>Personal Details</Text>
@@ -163,6 +300,27 @@ export default function CreateTravelCard({ user, onDone, onBack }) {
               ))}
             </View>
 
+            {docType ? (
+              <>
+                <FLabel text={`${docType} Number`} />
+                <TextInput
+                  style={[
+                    s.input,
+                    idNumber.trim() && !checkIdNumberFormat(docType, idNumber).valid && s.inputInvalid,
+                  ]}
+                  value={idNumber}
+                  onChangeText={setIdNumber}
+                  placeholder={docType === 'Aadhaar' ? 'XXXX XXXX XXXX' : docType === 'PAN Card' ? 'ABCDE1234F' : 'ID number'}
+                  placeholderTextColor="#C4BAA8"
+                  autoCapitalize="characters"
+                  keyboardType={docType === 'Aadhaar' ? 'number-pad' : 'default'}
+                />
+                {idNumber.trim() && !checkIdNumberFormat(docType, idNumber).valid ? (
+                  <Text style={s.idFormatError}>{checkIdNumberFormat(docType, idNumber).message}</Text>
+                ) : null}
+              </>
+            ) : null}
+
             <FLabel text="Upload Document" />
             <TouchableOpacity style={s.uploadBtn} onPress={pickDocument} activeOpacity={0.8}>
               <Feather name={docFile ? 'file' : 'upload'} size={18} color={docFile ? '#1B4332' : '#9E9484'} />
@@ -171,16 +329,113 @@ export default function CreateTravelCard({ user, onDone, onBack }) {
               </Text>
             </TouchableOpacity>
 
-            <NextBtn onPress={() => {
-              if (!fullName.trim() || !mobile.trim() || !docType) {
-                Alert.alert('Required', 'Please fill all fields and select an ID type.'); return;
-              }
-              setStep(2);
-            }} />
+            {!docType && docFile && (
+              <Text style={s.verifyHint}>Select a document type above to check this upload.</Text>
+            )}
+
+            {verification.status === 'checking' && (
+              <View style={s.verifyCard}>
+                <ActivityIndicator size="small" color="#1B4332" />
+                <Text style={s.verifyCheckingText}>Checking document…</Text>
+              </View>
+            )}
+
+            {verification.status === 'error' && (
+              <View style={[s.verifyCard, s.verifyCardMuted]}>
+                <Feather name="info" size={15} color="#9E9484" />
+                <Text style={s.verifyMutedText}>{verification.message}</Text>
+              </View>
+            )}
+
+            {verification.status === 'done' && (
+              <View style={[
+                s.verifyCard,
+                verification.verdict === 'likely_genuine' && s.verifyCardGood,
+                verification.verdict === 'uncertain' && s.verifyCardWarn,
+                verification.verdict === 'likely_invalid' && s.verifyCardBad,
+              ]}>
+                <Feather
+                  name={verification.verdict === 'likely_genuine' ? 'check-circle'
+                    : verification.verdict === 'uncertain' ? 'help-circle' : 'alert-circle'}
+                  size={16}
+                  color={verification.verdict === 'likely_genuine' ? '#059669'
+                    : verification.verdict === 'uncertain' ? '#CA8A04' : '#DC2626'}
+                />
+                <View style={{ flex: 1 }}>
+                  <Text style={[
+                    s.verifyTitle,
+                    verification.verdict === 'likely_genuine' && { color: '#059669' },
+                    verification.verdict === 'uncertain' && { color: '#CA8A04' },
+                    verification.verdict === 'likely_invalid' && { color: '#DC2626' },
+                  ]}>
+                    {verification.verdict === 'likely_genuine' ? `Looks like a valid ${docType}`
+                      : verification.verdict === 'uncertain' ? 'Could not confirm automatically'
+                      : `Doesn't look like a valid ${docType}`}
+                  </Text>
+                  <Text style={s.verifyReasoning}>{verification.reasoning}</Text>
+                  {verification.nameMatch === false && (
+                    <Text style={s.verifyNameWarning}>
+                      The name on the document doesn't appear to match "{fullName}".
+                    </Text>
+                  )}
+
+                  {verification.idNumberMatch === false && (
+                    <Text style={s.verifyNameWarning}>
+                      The number on the document ({verification.extractedIdNumber || 'unclear'}) doesn't match what you entered.
+                    </Text>
+                  )}
+                  {verification.idNumberMatch === true && (
+                    <Text style={s.verifyIdMatchGood}>Document number matches what you entered.</Text>
+                  )}
+
+                  {(verification.verdict === 'likely_invalid' || verification.idNumberMatch === false) && (
+                    <TouchableOpacity
+                      style={s.overrideRow}
+                      onPress={() => setVerifyOverride(v => !v)}
+                    >
+                      <View style={[s.checkbox, verifyOverride && s.checkboxChecked]}>
+                        {verifyOverride && <Feather name="check" size={11} color="#fff" />}
+                      </View>
+                      <Text style={s.overrideText}>
+                        I confirm this is correct -- upload anyway
+                      </Text>
+                    </TouchableOpacity>
+                  )}
+                </View>
+              </View>
+            )}
+
+            <Text style={s.verifyDisclaimer}>
+              This is an automatic first-pass check, not official identity verification --
+              it can miss things and occasionally flag genuine documents by mistake.
+            </Text>
+
+            <NextBtn
+              disabled={verification.status === 'checking' || verificationBlocksContinue}
+              onPress={() => {
+                if (!fullName.trim() || !mobile.trim() || !docType) {
+                  Alert.alert('Required', 'Please fill all fields and select an ID type.'); return;
+                }
+                if (idNumber.trim() && !checkIdNumberFormat(docType, idNumber).valid) {
+                  Alert.alert('Check ID number', checkIdNumberFormat(docType, idNumber).message); return;
+                }
+                if (verificationBlocksContinue) {
+                  const reason = verification.idNumberMatch === false
+                    ? "The ID number on the document doesn't match what you entered."
+                    : "This doesn't look like a valid document of the selected type.";
+                  Alert.alert(
+                    'Document check failed',
+                    `${reason} Please double check and re-upload if needed, or confirm the checkbox above to continue anyway.`
+                  );
+                  return;
+                }
+                setStep(2);
+              }}
+            />
           </View>
         )}
 
-        {/* STEP 2 — Trip details */}
+        {/* STEP 2 -- Trip details */}
         {step === 2 && (
           <View>
             <Text style={s.pageTitle}>Trip Details</Text>
@@ -189,32 +444,70 @@ export default function CreateTravelCard({ user, onDone, onBack }) {
             <View style={{ flexDirection: 'row', gap: 12 }}>
               <View style={{ flex: 1 }}>
                 <FLabel text="Start Date" />
-                <FInput value={startDate} onChange={setStartDate} placeholder="YYYY-MM-DD" />
+                <DateField
+                  value={startDate}
+                  onPress={() => setShowStartPicker(true)}
+                />
               </View>
               <View style={{ flex: 1 }}>
                 <FLabel text="End Date" />
-                <FInput value={endDate} onChange={setEndDate} placeholder="YYYY-MM-DD" />
+                <DateField
+                  value={endDate}
+                  onPress={() => {
+                    if (!startDate) {
+                      Alert.alert('Pick a start date first', 'Choose your start date before the end date.');
+                      return;
+                    }
+                    setShowEndPicker(true);
+                  }}
+                />
               </View>
             </View>
 
-            <FLabel text="Destinations" />
-            {places.map((place, i) => (
+            <DatePickerSheet
+              visible={showStartPicker}
+              value={startDate || new Date()}
+              minimumDate={new Date()}
+              onClose={() => setShowStartPicker(false)}
+              onChange={(d) => {
+                setStartDate(d);
+                if (endDate && endDate < d) setEndDate(null);
+              }}
+            />
+            <DatePickerSheet
+              visible={showEndPicker}
+              value={endDate || startDate || new Date()}
+              minimumDate={startDate || new Date()}
+              onClose={() => setShowEndPicker(false)}
+              onChange={setEndDate}
+            />
+
+            <FLabel text="Start Point" />
+            <FInput value={startPoint} onChange={setStartPoint} placeholder="Where does your trip begin?" />
+
+            <FLabel text="Intermediate Stops" />
+            <Text style={s.subDesc}>
+              Places you'll pass through before your final destination -- stopping here won't
+              be flagged as unusual
+            </Text>
+            {waypoints.map((stop, i) => (
               <View key={i} style={s.listRow}>
                 <View style={s.listNum}><Text style={s.listNumText}>{i + 1}</Text></View>
                 <TextInput
-                  style={[s.input, { flex: 1 }]} value={place}
-                  onChangeText={t => { const n = [...places]; n[i] = t; setPlaces(n); }}
-                  placeholder={`Destination ${i + 1}`} placeholderTextColor="#C4BAA8"
+                  style={[s.input, { flex: 1 }]} value={stop}
+                  onChangeText={t => { const n = [...waypoints]; n[i] = t; setWaypoints(n); }}
+                  placeholder={`Stop ${i + 1}`} placeholderTextColor="#C4BAA8"
                 />
-                {places.length > 1 && (
-                  <TouchableOpacity style={s.removeCircle}
-                    onPress={() => setPlaces(places.filter((_, j) => j !== i))}>
-                    <Feather name="x" size={12} color="#DC2626" />
-                  </TouchableOpacity>
-                )}
+                <TouchableOpacity style={s.removeCircle}
+                  onPress={() => setWaypoints(waypoints.filter((_, j) => j !== i))}>
+                  <Feather name="x" size={12} color="#DC2626" />
+                </TouchableOpacity>
               </View>
             ))}
-            <AddRowBtn label="Add destination" onPress={() => setPlaces([...places, ''])} />
+            <AddRowBtn label="Add intermediate stop" onPress={() => setWaypoints([...waypoints, ''])} />
+
+            <FLabel text="Final Destination" />
+            <FInput value={finalDestination} onChange={setFinalDestination} placeholder="Where does your trip end?" />
 
             <FLabel text="Travel Companions" />
             <Text style={s.subDesc}>People travelling with you</Text>
@@ -237,13 +530,16 @@ export default function CreateTravelCard({ user, onDone, onBack }) {
             <AddRowBtn label="Add companion" onPress={() => setCompanions([...companions, { name: '', phone: '' }])} />
 
             <NextBtn onPress={() => {
-              if (!startDate || !endDate) { Alert.alert('Required', 'Please enter travel dates.'); return; }
+              if (!startDate || !endDate) { Alert.alert('Required', 'Please select travel dates.'); return; }
+              if (!startPoint.trim() || !finalDestination.trim()) {
+                Alert.alert('Required', 'Please enter a start point and final destination.'); return;
+              }
               setStep(3);
             }} />
           </View>
         )}
 
-        {/* STEP 3 — Emergency contacts */}
+        {/* STEP 3 -- Emergency contacts */}
         {step === 3 && (
           <View>
             <Text style={s.pageTitle}>Emergency Contacts</Text>
@@ -279,9 +575,9 @@ export default function CreateTravelCard({ user, onDone, onBack }) {
               {[
                 { label: 'Name',               value: fullName },
                 { label: 'Mobile',             value: mobile },
-                { label: 'Document',           value: docType },
-                { label: 'Dates',              value: `${startDate} → ${endDate}` },
-                { label: 'Destinations',       value: places.filter(Boolean).join(', ') || '—' },
+                { label: 'Document',           value: idNumber.trim() ? `${docType} (${idNumber.trim()})` : docType },
+                { label: 'Dates',              value: `${toDisplayDate(startDate)} -> ${toDisplayDate(endDate)}` },
+                { label: 'Route',               value: [startPoint, ...waypoints.filter(Boolean), finalDestination].filter(Boolean).join(' -> ') || '--' },
                 { label: 'Emergency contacts', value: `${emergency.filter(c => c.name && c.phone).length} added` },
               ].map((row, i) => (
                 <View key={i} style={s.summaryRow}>
@@ -323,9 +619,64 @@ function FInput({ value, onChange, placeholder, keyboard }) {
     />
   );
 }
-function NextBtn({ onPress }) {
+function DateField({ value, onPress }) {
   return (
-    <TouchableOpacity style={s.nextBtn} onPress={onPress} activeOpacity={0.9}>
+    <TouchableOpacity style={s.dateBtn} onPress={onPress} activeOpacity={0.8}>
+      <Feather name="calendar" size={15} color={value ? '#1B4332' : '#9E9484'} />
+      <Text style={[s.dateBtnText, value && { color: '#1A1A1A', fontWeight: '600' }]}>
+        {toDisplayDate(value)}
+      </Text>
+    </TouchableOpacity>
+  );
+}
+// Android's native date dialog dismisses itself on selection; iOS's inline
+// picker doesn't, so it needs an explicit sheet with a Done button -- this
+// wraps both behind one consistent onChange(date) callback either way.
+function DatePickerSheet({ visible, value, minimumDate, onChange, onClose }) {
+  if (!visible) return null;
+
+  if (Platform.OS === 'android') {
+    return (
+      <DateTimePicker
+        value={value}
+        mode="date"
+        display="default"
+        minimumDate={minimumDate}
+        onChange={(event, selected) => {
+          onClose();
+          if (event.type === 'set' && selected) onChange(selected);
+        }}
+      />
+    );
+  }
+
+  return (
+    <Modal transparent animationType="slide" visible={visible} onRequestClose={onClose}>
+      <View style={s.pickerOverlay}>
+        <View style={s.pickerSheet}>
+          <DateTimePicker
+            value={value}
+            mode="date"
+            display="inline"
+            minimumDate={minimumDate}
+            onChange={(event, selected) => { if (selected) onChange(selected); }}
+          />
+          <TouchableOpacity style={s.pickerDoneBtn} onPress={onClose} activeOpacity={0.9}>
+            <Text style={s.pickerDoneBtnText}>Done</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    </Modal>
+  );
+}
+function NextBtn({ onPress, disabled }) {
+  return (
+    <TouchableOpacity
+      style={[s.nextBtn, disabled && s.nextBtnDisabled]}
+      onPress={onPress}
+      activeOpacity={0.9}
+      disabled={disabled}
+    >
       <Text style={s.nextBtnText}>Continue</Text>
       <Feather name="arrow-right" size={16} color="#fff" />
     </TouchableOpacity>
@@ -391,6 +742,8 @@ const s = StyleSheet.create({
     fontSize: 15, color: '#1A1A1A', backgroundColor: '#fff', marginBottom: 12,
   },
   inputFocused: { borderColor: '#1B4332' },
+  inputInvalid: { borderColor: '#DC2626' },
+  idFormatError: { fontSize: 12, color: '#DC2626', marginTop: -8, marginBottom: 12 },
 
   chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 18 },
   chip: {
@@ -405,9 +758,54 @@ const s = StyleSheet.create({
   uploadBtn: {
     flexDirection: 'row', alignItems: 'center', gap: 12,
     padding: 16, borderWidth: 1.5, borderColor: '#EAE4D9',
-    borderRadius: 12, borderStyle: 'dashed', backgroundColor: '#FAFAF8', marginBottom: 20,
+    borderRadius: 12, borderStyle: 'dashed', backgroundColor: '#FAFAF8', marginBottom: 12,
   },
   uploadText: { fontSize: 14, color: '#9E9484', flex: 1 },
+
+  verifyHint: { fontSize: 12, color: '#CA8A04', marginBottom: 12 },
+  verifyCard: {
+    flexDirection: 'row', gap: 10, alignItems: 'flex-start',
+    padding: 14, borderRadius: 12, borderWidth: 1, marginBottom: 12,
+    backgroundColor: '#fff', borderColor: '#EAE4D9',
+  },
+  verifyCardMuted: { backgroundColor: '#FAFAF8', borderColor: '#EAE4D9' },
+  verifyCardGood:  { backgroundColor: '#ECFDF5', borderColor: '#A7F3D0' },
+  verifyCardWarn:  { backgroundColor: '#FFFBEB', borderColor: '#FDE68A' },
+  verifyCardBad:   { backgroundColor: '#FFF5F5', borderColor: '#FFC9C9' },
+  verifyCheckingText: { fontSize: 13, color: '#1B4332', fontWeight: '600' },
+  verifyMutedText:    { fontSize: 12, color: '#9E9484', flex: 1 },
+  verifyTitle:        { fontSize: 13, fontWeight: '700', marginBottom: 3 },
+  verifyReasoning:    { fontSize: 12, color: '#6b7280', lineHeight: 17 },
+  verifyNameWarning:  { fontSize: 12, color: '#DC2626', marginTop: 6, fontWeight: '600' },
+  verifyIdMatchGood:  { fontSize: 12, color: '#059669', marginTop: 6, fontWeight: '600' },
+  verifyDisclaimer:   { fontSize: 11, color: '#C4BAA8', marginBottom: 18, lineHeight: 15 },
+
+  overrideRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 10 },
+  checkbox: {
+    width: 18, height: 18, borderRadius: 5, borderWidth: 1.5, borderColor: '#DC2626',
+    alignItems: 'center', justifyContent: 'center',
+  },
+  checkboxChecked: { backgroundColor: '#DC2626' },
+  overrideText: { fontSize: 12, color: '#DC2626', fontWeight: '600', flex: 1 },
+
+  dateBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+    paddingVertical: 13, paddingHorizontal: 16,
+    borderWidth: 1.5, borderColor: '#EAE4D9', borderRadius: 12,
+    backgroundColor: '#fff', marginBottom: 12,
+  },
+  dateBtnText: { fontSize: 14, color: '#9E9484' },
+
+  pickerOverlay: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.3)' },
+  pickerSheet: {
+    backgroundColor: '#fff', borderTopLeftRadius: 20, borderTopRightRadius: 20,
+    padding: 16, paddingBottom: Platform.OS === 'ios' ? 32 : 16,
+  },
+  pickerDoneBtn: {
+    backgroundColor: '#1B4332', borderRadius: 12, paddingVertical: 13,
+    alignItems: 'center', marginTop: 8,
+  },
+  pickerDoneBtnText: { color: '#fff', fontSize: 15, fontWeight: '700' },
 
   listRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 8 },
   listNum: { width: 28, height: 28, borderRadius: 14, backgroundColor: '#1B4332', alignItems: 'center', justifyContent: 'center' },
@@ -453,6 +851,7 @@ const s = StyleSheet.create({
     shadowColor: '#1B4332', shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.22, shadowRadius: 8, elevation: 4,
   },
+  nextBtnDisabled: { opacity: 0.5 },
   nextBtnText: { color: '#fff', fontSize: 15, fontWeight: '700' },
 
   submitBtn: {
