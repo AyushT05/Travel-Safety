@@ -14,21 +14,94 @@ export default function HomeScreen({ user, onCreateCard, onStartTracking }) {
   const [loading, setLoading]       = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [editingCard, setEditingCard] = useState(null);
+  const [pendingRequests, setPendingRequests] = useState([]);
+  const [requestActionId, setRequestActionId] = useState(null);
 
   const name  = user.user_metadata?.full_name || user.email?.split('@')[0] || 'Traveller';
   const today = new Date().toISOString().split('T')[0];
 
   const fetchCards = useCallback(async () => {
-    const { data } = await supabase
-      .from('travel_cards').select('*')
-      .eq('user_id', user.id)
-      .order('created_at', { ascending: false });
-    setCards(data || []);
-    setLoading(false);
-    setRefreshing(false);
+    try {
+      const [cardsResult, requestsResult] = await Promise.all([
+        supabase
+          .from('travel_cards').select('*')
+          .eq('user_id', user.id)
+          .order('created_at', { ascending: false }),
+        supabase
+          .from('tracking_requests')
+          .select('id, requester_id, traveler_id, status, created_at')
+          .eq('traveler_id', user.id)
+          .eq('status', 'pending')
+          .order('created_at', { ascending: false }),
+      ]);
+
+      if (cardsResult.error) {
+        console.error('Failed to load travel cards:', cardsResult.error);
+      } else {
+        setCards(cardsResult.data || []);
+      }
+
+      if (requestsResult.error) {
+        console.error('Failed to load incoming tracking requests:', requestsResult.error);
+        Alert.alert(
+          'Could not load requests',
+          'Incoming tracking requests could not be loaded. Pull down to retry.'
+        );
+      } else {
+        setPendingRequests(requestsResult.data || []);
+      }
+    } catch (error) {
+      console.error('Failed to load home screen data:', error);
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
   }, [user.id]);
 
   useEffect(() => { fetchCards(); }, [fetchCards]);
+
+  async function respondToTrackingRequest(request, decision) {
+    setRequestActionId(request.id);
+    const { error } = await supabase.rpc('respond_tracking_request', {
+      p_request_id: request.id,
+      p_decision: decision,
+    });
+    setRequestActionId(null);
+
+    if (error) {
+      console.error(`Failed to ${decision} tracking request:`, error);
+      Alert.alert(
+        'Action failed',
+        error.message || 'The request could not be updated. Please refresh and try again.'
+      );
+      return;
+    }
+
+    setPendingRequests(current => current.filter(item => item.id !== request.id));
+    Alert.alert(
+      decision === 'approved' ? 'Tracking approved' : 'Request rejected',
+      decision === 'approved'
+        ? 'This person can now access your permitted location data.'
+        : 'This person will not be able to track your location.'
+    );
+    await fetchCards();
+  }
+
+  function confirmTrackingRequest(request, decision) {
+    const actionLabel = decision === 'approved' ? 'Approve' : 'Reject';
+    Alert.alert(
+      `${actionLabel} tracking request?`,
+      `${actionLabel === 'Approve' ? 'This person will be able to view your permitted location data.' : 'This person will not receive tracking access.'}`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: actionLabel,
+          style: decision === 'approved' ? 'default' : 'destructive',
+          onPress: () => respondToTrackingRequest(request, decision),
+        },
+      ]
+    );
+  }
 
   async function deleteCard(card) {
     Alert.alert(
@@ -97,6 +170,72 @@ export default function HomeScreen({ user, onCreateCard, onStartTracking }) {
       >
         <View style={{ marginBottom: 16 }}>
           <PanicButton user={user} />
+        </View>
+
+        {/* Incoming tracking requests: visible only to the traveller receiving them. */}
+        <View style={s.requestsCard}>
+            <View style={s.requestsHeader}>
+              <View style={s.requestsIconWrap}>
+                <Ionicons name="shield-checkmark-outline" size={18} color="#1B4332" />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={s.requestsTitle}>Tracking requests</Text>
+                <Text style={s.requestsSubtitle}>
+                  {pendingRequests.length > 0
+                    ? `${pendingRequests.length} pending ${pendingRequests.length === 1 ? 'request' : 'requests'} — review before sharing your location`
+                    : 'Requests from people who want permission to track your location appear here.'}
+                </Text>
+              </View>
+              <TouchableOpacity
+                style={s.refreshRequestsBtn}
+                onPress={() => { setRefreshing(true); fetchCards(); }}
+                disabled={refreshing}
+                accessibilityRole="button"
+                accessibilityLabel="Refresh tracking requests"
+              >
+                <Feather name="refresh-cw" size={16} color="#1B4332" />
+              </TouchableOpacity>
+            </View>
+
+            {pendingRequests.length === 0 ? (
+              <Text style={s.noRequestsText}>No pending requests. Pull down to refresh.</Text>
+            ) : pendingRequests.map(request => (
+              <View key={request.id} style={s.requestItem}>
+                <View style={{ flex: 1, marginRight: 10 }}>
+                  <Text style={s.requesterLabel}>REQUESTER DEVICE ID</Text>
+                  <Text style={s.requesterId} numberOfLines={1} ellipsizeMode="middle">
+                    {request.requester_id}
+                  </Text>
+                  <Text style={s.requestDate}>
+                    Sent {new Date(request.created_at).toLocaleString()}
+                  </Text>
+                </View>
+                <View style={s.requestActions}>
+                  <TouchableOpacity
+                    style={[s.requestActionBtn, s.rejectRequestBtn]}
+                    onPress={() => confirmTrackingRequest(request, 'rejected')}
+                    disabled={requestActionId === request.id}
+                    accessibilityRole="button"
+                    accessibilityLabel="Reject tracking request"
+                  >
+                    <Text style={s.rejectRequestText}>
+                      {requestActionId === request.id ? '…' : 'Reject'}
+                    </Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[s.requestActionBtn, s.approveRequestBtn]}
+                    onPress={() => confirmTrackingRequest(request, 'approved')}
+                    disabled={requestActionId === request.id}
+                    accessibilityRole="button"
+                    accessibilityLabel="Approve tracking request"
+                  >
+                    <Text style={s.approveRequestText}>
+                      {requestActionId === request.id ? '…' : 'Approve'}
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            ))}
         </View>
 
         {/* Active journey banner */}
@@ -516,6 +655,32 @@ const s = StyleSheet.create({
     fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace',
     fontSize: 12, color: '#3D3530', letterSpacing: 0.3,
   },
+
+  requestsCard: {
+    backgroundColor: '#FFFFFF', borderRadius: 16, padding: 16,
+    borderWidth: 1, borderColor: '#D1FAE5', marginBottom: 20,
+  },
+  requestsHeader: { flexDirection: 'row', alignItems: 'center', gap: 11, marginBottom: 12 },
+  requestsIconWrap: {
+    width: 36, height: 36, borderRadius: 10, backgroundColor: '#ECFDF5',
+    alignItems: 'center', justifyContent: 'center',
+  },
+  requestsTitle: { fontSize: 15, fontWeight: '800', color: '#1B4332' },
+  requestsSubtitle: { fontSize: 12, color: '#6B7C74', marginTop: 3, lineHeight: 17 },
+  refreshRequestsBtn: { width: 34, height: 34, borderRadius: 17, backgroundColor: '#ECFDF5', alignItems: 'center', justifyContent: 'center' },
+  noRequestsText: { fontSize: 12, color: '#9E9484', paddingVertical: 8, lineHeight: 18 },
+  requestItem: {
+    borderTopWidth: 1, borderTopColor: '#EAEFEA', paddingTop: 13, marginTop: 4,
+  },
+  requesterLabel: { fontSize: 10, fontWeight: '800', color: '#9E9484', letterSpacing: 0.8, marginBottom: 4 },
+  requesterId: { fontSize: 12, color: '#3D3530', fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace' },
+  requestDate: { fontSize: 11, color: '#9E9484', marginTop: 5 },
+  requestActions: { flexDirection: 'row', justifyContent: 'flex-end', gap: 8, marginTop: 12 },
+  requestActionBtn: { minWidth: 82, alignItems: 'center', justifyContent: 'center', borderRadius: 10, paddingVertical: 9, paddingHorizontal: 14 },
+  rejectRequestBtn: { backgroundColor: '#FFF5F5', borderWidth: 1, borderColor: '#FECACA' },
+  approveRequestBtn: { backgroundColor: '#1B4332' },
+  rejectRequestText: { fontSize: 12, fontWeight: '700', color: '#B91C1C' },
+  approveRequestText: { fontSize: 12, fontWeight: '700', color: '#FFFFFF' },
 
   sectionHeader: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14,
