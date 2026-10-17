@@ -1,7 +1,7 @@
 import { statusFor } from "../utils/helpers";
 import { useAuth } from "../context/AuthContext";
 
-export default function Header({ devices, openAlertsCount = 0, onOpenAlerts }) {
+export default function Header({ devices, openAlertsCount = 0, onOpenAlerts, urgentIncidentCount = 0, onOpenIncidents }) {
   const { auth, logout } = useAuth();
   const names = Object.keys(devices);
   const live  = names.filter(n => statusFor(devices[n].timestamp) === "live").length;
@@ -39,6 +39,18 @@ export default function Header({ devices, openAlertsCount = 0, onOpenAlerts }) {
       </div>
 
       <div className="header-user">
+        {onOpenIncidents && (
+          <button className="alerts-bell-btn header-incidents-btn" onClick={onOpenIncidents} title="Incidents">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+              <line x1="12" y1="9" x2="12" y2="13" /><line x1="12" y1="17" x2="12.01" y2="17" />
+            </svg>
+            {urgentIncidentCount > 0 && (
+              <span className="alerts-bell-count">{urgentIncidentCount > 9 ? "9+" : urgentIncidentCount}</span>
+            )}
+          </button>
+        )}
+
         <button className="alerts-bell-btn" onClick={onOpenAlerts} title="Alerts">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9" />

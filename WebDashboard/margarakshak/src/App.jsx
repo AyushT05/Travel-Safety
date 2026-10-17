@@ -7,10 +7,12 @@ import MapControls from "./components/MapControls";
 import LoginPage from "./components/LoginPage";
 import UserIdPanel from "./components/UserIdPanel";
 import AlertsPanel from "./components/AlertsPanel";
+import IncidentsPanel from "./components/IncidentsPanel";
 
 import useDevices from "./hooks/useDevices";
 import useActivityState, { pickActivity } from "./hooks/useActivityState";
 import useAlerts from "./hooks/useAlerts";
+import useIncidents from "./hooks/useIncidents";
 import useSafetyAssessments from "./hooks/useSafetyAssessments";
 import SafetyPanel from "./components/SafetyPanel";
 
@@ -28,6 +30,8 @@ export default function App() {
   const { activity } = useActivityState();
   const { alerts, openCount, acknowledge, resolve } = useAlerts();
   const { assessments: safetyAssessments } = useSafetyAssessments();
+  const { incidents, urgentCount, act: actOnIncident } = useIncidents();
+  const [showIncidents, setShowIncidents] = useState(false);
 
   const [showAlertsPanel, setShowAlertsPanel] =
     useState(false);
@@ -107,6 +111,8 @@ export default function App() {
         devices={devices}
         openAlertsCount={openCount}
         onOpenAlerts={() => setShowAlertsPanel(true)}
+        urgentIncidentCount={urgentCount}
+        onOpenIncidents={auth?.role === "admin" ? () => setShowIncidents(true) : undefined}
       />
 
       <div className="layout">
@@ -181,6 +187,17 @@ export default function App() {
           onAcknowledge={acknowledge}
           onResolve={resolve}
           onClose={() => setShowAlertsPanel(false)}
+        />
+      )}
+
+      {/* Incidents (admin only; RLS enforces this server-side too) */}
+      {showIncidents && (
+        <IncidentsPanel
+          incidents={incidents}
+          travelCards={travelCards}
+          onAct={actOnIncident}
+          onFocus={(userId) => { setSelected(userId); setShowIncidents(false); }}
+          onClose={() => setShowIncidents(false)}
         />
       )}
 
