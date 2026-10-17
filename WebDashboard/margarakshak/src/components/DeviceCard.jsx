@@ -1,5 +1,6 @@
 import { timeAgo, statusFor } from "../utils/helpers";
 import LocationFreshnessBadge from "./LocationFreshnessBadge";
+import SafetyBadge from "./SafetyBadge";
 
 export default function DeviceCard({
   name,
@@ -7,6 +8,7 @@ export default function DeviceCard({
   data,
   selected,
   onClick,
+  safetyStatus,
 }) {
   const status = statusFor(data.timestamp);
 
@@ -40,6 +42,7 @@ export default function DeviceCard({
             title={status}
           />
           <LocationFreshnessBadge device={data} />
+          <SafetyBadge status={safetyStatus} />
         </div>
       </div>
 

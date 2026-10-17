@@ -6,13 +6,13 @@ import {
 import L from "leaflet";
 import { colorFor, findCurrentCard } from "../utils/helpers";
 
-function makeLiveIcon(color, initials) {
+function makeLiveIcon(color, initials, isUnsafe = false) {
   return L.divIcon({
     className: "",
     html: `
       <div class="live-marker" style="--mc:${color}">
-        <div class="live-marker-ring live-marker-ring-2"></div>
-        <div class="live-marker-ring live-marker-ring-1"></div>
+        <div class="live-marker-ring live-marker-ring-2"${isUnsafe ? ' style="border-color:#dc2626;"' : ""}></div>
+        <div class="live-marker-ring live-marker-ring-1"${isUnsafe ? ' style="border-color:#dc2626;"' : ""}></div>
 
         <div class="live-marker-core">
           <span class="live-marker-initials">
@@ -50,6 +50,7 @@ export default function MapView({
   follow,
   selected,
   setMapActions,
+  safetyAssessments = {},
 }) {
   const mapRef = useRef(null);
 
@@ -67,6 +68,8 @@ export default function MapView({
   const activeCardRef = useRef({});
 
   const alertMarkersRef = useRef({});
+
+  const dangerZonesRef = useRef([]);
 
   const initializedRef = useRef(false);
 
@@ -224,6 +227,7 @@ export default function MapView({
           getInitials(name);
 
         const color = colorFor(id);
+        const isUnsafe = safetyAssessments[id]?.safety_status === "unsafe";
 
         // Create marker
         if (!markersRef.current[id]) {
@@ -232,7 +236,8 @@ export default function MapView({
             {
               icon: makeLiveIcon(
                 color,
-                initials
+                initials,
+                isUnsafe
               ),
             }
           ).addTo(map);
@@ -270,7 +275,8 @@ export default function MapView({
           markersRef.current[id].setIcon(
             makeLiveIcon(
               color,
-              initials
+              initials,
+              isUnsafe
             )
           );
 
@@ -325,7 +331,7 @@ export default function MapView({
         });
       }
     }
-  }, [devices, travelCards, follow]);
+  }, [devices, travelCards, follow, safetyAssessments]);
 
   // Zoom to the selected device whenever a sidebar card is clicked. This is
   // deliberately its own effect, keyed only on `selected` (not on every
@@ -385,6 +391,44 @@ export default function MapView({
       }
     });
   }, [alerts]);
+
+  // Danger zone circles on map for the selected user's nearby unsafe zones
+  useEffect(() => {
+    if (!leafletMap.current) return;
+    const map = leafletMap.current;
+
+    // Clean up existing danger zones
+    dangerZonesRef.current.forEach((circle) => map.removeLayer(circle));
+    dangerZonesRef.current = [];
+
+    if (!selected) return;
+    const assessment = safetyAssessments[selected];
+    const zones = assessment?.matched_unsafe_zones;
+    if (!Array.isArray(zones) || zones.length === 0) return;
+
+    zones.forEach((zone) => {
+      const lat = zone.lat ?? zone.latitude;
+      const lon = zone.lon ?? zone.longitude;
+      if (lat == null || lon == null) return;
+
+      const circle = L.circle([lat, lon], {
+        radius: zone.radius_m || 500,
+        color: "#dc2626",
+        fillColor: "#dc2626",
+        fillOpacity: 0.12,
+        weight: 1.5,
+        dashArray: "6,4",
+        className: "danger-zone",
+      }).addTo(map);
+
+      dangerZonesRef.current.push(circle);
+    });
+
+    return () => {
+      dangerZonesRef.current.forEach((circle) => map.removeLayer(circle));
+      dangerZonesRef.current = [];
+    };
+  }, [selected, safetyAssessments]);
 
   return (
     <div

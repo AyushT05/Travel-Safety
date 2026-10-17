@@ -1,4 +1,5 @@
 import { findCurrentCard } from "../utils/helpers";
+import SafetyBadge from "./SafetyBadge";
 
 const RISK_LEVELS = [
   { max: 0.05, label: "Critical", color: "#dc2626" },
@@ -12,7 +13,15 @@ function riskLevel(tailProbability) {
   return RISK_LEVELS.find((level) => tailProbability < level.max) ?? RISK_LEVELS[RISK_LEVELS.length - 1];
 }
 
-export default function DevicePanel({ device, name, travelCards = [], activity, onOpenNearby }) {
+export default function DevicePanel({
+  device,
+  name,
+  travelCards = [],
+  activity,
+  onOpenNearby,
+  safetyAssessment,
+  onOpenSafety,
+}) {
   if (!device) return null;
   const card = findCurrentCard(travelCards, name);
   const displayName = card?.full_name || name?.slice(0, 12) + "…";
@@ -40,6 +49,9 @@ export default function DevicePanel({ device, name, travelCards = [], activity, 
               >
                 {risk.label}
               </span>
+            )}
+            {safetyAssessment && (
+              <SafetyBadge status={safetyAssessment.safety_status} size="large" />
             )}
           </div>
           <div className="panel-coords">
@@ -78,6 +90,18 @@ export default function DevicePanel({ device, name, travelCards = [], activity, 
             </svg>
             Nearby Help
           </button>
+
+          {safetyAssessment && (
+            <button
+              className="safety-trigger-btn"
+              onClick={() => onOpenSafety?.(safetyAssessment)}
+            >
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+              </svg>
+              Safety Details
+            </button>
+          )}
         </div>
       </div>
     </div>

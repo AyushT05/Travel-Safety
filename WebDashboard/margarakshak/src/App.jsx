@@ -11,6 +11,8 @@ import AlertsPanel from "./components/AlertsPanel";
 import useDevices from "./hooks/useDevices";
 import useActivityState from "./hooks/useActivityState";
 import useAlerts from "./hooks/useAlerts";
+import useSafetyAssessments from "./hooks/useSafetyAssessments";
+import SafetyPanel from "./components/SafetyPanel";
 
 import { useState, useEffect } from "react";
 
@@ -25,6 +27,7 @@ export default function App() {
   const { devices } = useDevices();
   const { activity } = useActivityState();
   const { alerts, openCount, acknowledge, resolve } = useAlerts();
+  const { assessments: safetyAssessments } = useSafetyAssessments();
 
   const [showAlertsPanel, setShowAlertsPanel] =
     useState(false);
@@ -40,6 +43,9 @@ export default function App() {
 
   const [showIdPanel, setShowIdPanel] =
     useState(false);
+
+  const [safetyTarget, setSafetyTarget] =
+    useState(null);
 
   const [travelCards, setTravelCards] =
     useState([]);
@@ -113,6 +119,7 @@ export default function App() {
             setShowIdPanel(true)
           }
           travelCards={travelCards}
+          safetyAssessments={safetyAssessments}
         />
 
         {/* Main map area */}
@@ -123,6 +130,7 @@ export default function App() {
             alerts={alerts}
             follow={follow}
             selected={selected}
+            safetyAssessments={safetyAssessments}
             setMapActions={
               setMapActions
             }
@@ -150,6 +158,8 @@ export default function App() {
             travelCards={travelCards}
             activity={activity[selected]}
             onOpenNearby={setNearbyTarget}
+            safetyAssessment={safetyAssessments[selected]}
+            onOpenSafety={setSafetyTarget}
           />
         </div>
       </div>
@@ -182,6 +192,12 @@ export default function App() {
           lon={nearbyTarget.lon}
           name={nearbyTarget.name}
           onClose={() => setNearbyTarget(null)}
+        />
+      )}
+      {safetyTarget && (
+        <SafetyPanel
+          assessment={safetyTarget}
+          onClose={() => setSafetyTarget(null)}
         />
       )}
     </>

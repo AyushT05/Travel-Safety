@@ -8,6 +8,7 @@ import * as Location from 'expo-location';
 import { Ionicons, Feather } from '@expo/vector-icons';
 import { supabase } from '../lib/supabase';
 import PanicButton from '../components/PanicButton';
+import SafetyBanner from '../components/SafetyBanner';
 import NearbyServices from '../components/NearbyServices';
 
 export default function ActiveTracking({ user, card, onStop }) {
@@ -119,6 +120,16 @@ export default function ActiveTracking({ user, card, onStop }) {
 
       <View style={{ paddingHorizontal: 20, marginBottom: 4 }}>
         <PanicButton user={user} />
+      </View>
+
+      <View style={{ paddingHorizontal: 20, marginBottom: 4 }}>
+        <SafetyBanner
+          lat={locationData?.lat}
+          lon={locationData?.lon}
+          user={user}
+          travelCardId={card.id}
+          isSharing={isSharing}
+        />
       </View>
 
       <ScrollView

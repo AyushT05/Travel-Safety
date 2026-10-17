@@ -9,6 +9,7 @@ export default function Sidebar({
   onSelect,
   onManageIds,
   travelCards = [],
+  safetyAssessments = {},
 }) {
   const { auth } = useAuth();
 
@@ -262,6 +263,7 @@ export default function Sidebar({
             data={devices[name]}
             selected={name === selected}
             onClick={() => handleSelect(name)}
+            safetyStatus={safetyAssessments[name]?.safety_status}
           />
         ))}
       </div>
