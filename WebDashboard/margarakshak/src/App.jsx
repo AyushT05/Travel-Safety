@@ -9,7 +9,7 @@ import UserIdPanel from "./components/UserIdPanel";
 import AlertsPanel from "./components/AlertsPanel";
 
 import useDevices from "./hooks/useDevices";
-import useActivityState from "./hooks/useActivityState";
+import useActivityState, { pickActivity } from "./hooks/useActivityState";
 import useAlerts from "./hooks/useAlerts";
 import useSafetyAssessments from "./hooks/useSafetyAssessments";
 import SafetyPanel from "./components/SafetyPanel";
@@ -24,7 +24,7 @@ export default function App() {
   const { auth, isLoaded } = useAuth();
 
   // Only devices now
-  const { devices } = useDevices();
+  const { devices, clearTrails } = useDevices();
   const { activity } = useActivityState();
   const { alerts, openCount, acknowledge, resolve } = useAlerts();
   const { assessments: safetyAssessments } = useSafetyAssessments();
@@ -147,8 +147,7 @@ export default function App() {
               fitAll:
                 mapActions.fitAll,
 
-              clearTrails:
-                mapActions.clearTrails,
+              clearTrails,
             }}
           />
 
@@ -156,7 +155,7 @@ export default function App() {
             device={devices[selected]}
             name={selected}
             travelCards={travelCards}
-            activity={activity[selected]}
+            activity={pickActivity(activity, devices[selected], selected)}
             onOpenNearby={setNearbyTarget}
             safetyAssessment={safetyAssessments[selected]}
             onOpenSafety={setSafetyTarget}

@@ -60,12 +60,10 @@ export default function MapView({
 
   const trailsRef = useRef({});
 
-  // Tracks which travel_card_id's trail is currently drawn for each device
-  // id, so a trip boundary can be detected and the trail reset even if the
-  // dashboard tab has stayed open the whole time (the same user_id can
-  // legitimately move from one finished trip straight into a brand new
-  // one without the page ever reloading).
-  const activeCardRef = useRef({});
+  // Last trail array drawn per device. Trails are owned by useDevices
+  // (device.trail); the map only mirrors them, and only redraws when the
+  // array reference changed.
+  const trailSeenRef = useRef({});
 
   const alertMarkersRef = useRef({});
 
@@ -136,18 +134,6 @@ export default function MapView({
           });
         }
       },
-
-      clearTrails() {
-        Object.values(trailsRef.current).forEach(
-          (trail) => {
-            leafletMap.current.removeLayer(
-              trail
-            );
-          }
-        );
-
-        trailsRef.current = {};
-      },
     });
   }, [devices, setMapActions]);
 
@@ -198,27 +184,6 @@ export default function MapView({
 
         const card = findCurrentCard(travelCards, id);
 
-        // Trip-boundary check: if this device's active card has changed
-        // since we last drew its trail (including going from "had a card"
-        // to "has a different one"), the old trail belongs to a different
-        // trip and must not visually connect into the new one. Recreate a
-        // fresh trail seeded at the CURRENT point immediately, rather than
-        // just deleting it, so the update branch below always has a trail
-        // to append to.
-        const cardKey = card?.id ?? null;
-        const tripChanged =
-          activeCardRef.current[id] !== undefined && activeCardRef.current[id] !== cardKey;
-        if (tripChanged) {
-          const oldTrail = trailsRef.current[id];
-          if (oldTrail) map.removeLayer(oldTrail);
-          trailsRef.current[id] = L.polyline([d.lastLatlng], {
-            color: colorFor(id),
-            weight: 4,
-            opacity: 0.45,
-          }).addTo(map);
-        }
-        activeCardRef.current[id] = cardKey;
-
         const name =
           card?.full_name ||
           id.slice(0, 8);
@@ -251,21 +216,6 @@ export default function MapView({
 
           markersRef.current[id] =
             marker;
-
-          // Trail was already created above if this is a fresh trip
-          // boundary; otherwise this is a genuinely brand-new device,
-          // seed its trail here.
-          if (!trailsRef.current[id]) {
-            trailsRef.current[id] =
-              L.polyline(
-                [d.lastLatlng],
-                {
-                  color,
-                  weight: 4,
-                  opacity: 0.45,
-                }
-              ).addTo(map);
-          }
         } else {
           // Update marker
           markersRef.current[id].setLatLng(
@@ -283,19 +233,25 @@ export default function MapView({
           markersRef.current[id].setPopupContent(
             popupHtml(name, card, id)
           );
+        }
 
-          // Update trail
-          const trail =
-            trailsRef.current[id];
-
-          if (trail) {
-            const latlngs =
-              trail.getLatLngs();
-
-            latlngs.push(d.lastLatlng);
-
-            trail.setLatLngs(latlngs);
-          }
+        // Mirror the device's trail onto the map. Created if missing (first
+        // render, or after Clear trails) and redrawn only when it changed.
+        const trailPts = d.trail && d.trail.length ? d.trail : [d.lastLatlng];
+        let trail = trailsRef.current[id];
+        if (!trail) {
+          trail = L.polyline(trailPts, {
+            color,
+            weight: 5,
+            opacity: 0.85,
+            lineJoin: "round",
+            lineCap: "round",
+          }).addTo(map);
+          trailsRef.current[id] = trail;
+          trailSeenRef.current[id] = d.trail;
+        } else if (trailSeenRef.current[id] !== d.trail) {
+          trail.setLatLngs(trailPts);
+          trailSeenRef.current[id] = d.trail;
         }
       }
     );

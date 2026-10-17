@@ -8,6 +8,29 @@ const RISK_LEVELS = [
   { max: Infinity, label: "Normal", color: "#16a34a" },
 ];
 
+const ACTIVITY_LABELS = {
+  WALKING: "Walking",
+  RESTING: "Resting",
+  IN_VEHICLE: "In vehicle",
+};
+const ACTIVITY_STALE_MS = 3 * 60 * 1000;
+
+// What to show in the Activity metric. A row that has not been touched for a
+// few minutes describes the past, not the present, so it is not shown as the
+// current state.
+function activityView(activity, device) {
+  const live = device?.freshnessStatus === "LIVE" || device?.freshnessStatus === "DELAYED";
+  if (!activity) return { label: live ? "Detecting…" : "—", duration: "—", stale: false };
+  const age = Date.now() - new Date(activity.updatedAt).getTime();
+  if (age > ACTIVITY_STALE_MS) return { label: "—", duration: "—", stale: true };
+  if (!activity.currentState) return { label: "Detecting…", duration: "—", stale: false };
+  return {
+    label: ACTIVITY_LABELS[activity.currentState] ?? activity.currentState,
+    duration: activity.durationMinutes ?? "—",
+    stale: false,
+  };
+}
+
 function riskLevel(tailProbability) {
   if (tailProbability === undefined || tailProbability === null) return null;
   return RISK_LEVELS.find((level) => tailProbability < level.max) ?? RISK_LEVELS[RISK_LEVELS.length - 1];
@@ -25,7 +48,8 @@ export default function DevicePanel({
   if (!device) return null;
   const card = findCurrentCard(travelCards, name);
   const displayName = card?.full_name || name?.slice(0, 12) + "…";
-  const risk = riskLevel(activity?.tailProbability);
+  const view = activityView(activity, device);
+  const risk = view.stale ? null : riskLevel(activity?.tailProbability);
 
   return (
     <div className="device-panel visible">
@@ -77,8 +101,8 @@ export default function DevicePanel({
             <Metric label="Speed" value={device.speed?.toFixed(1) ?? "—"} unit="km/h" />
             <Metric label="Accuracy" value={device.accuracy?.toFixed(0) ?? "—"} unit="m" />
             <Metric label="Updates" value={device.updates ?? "—"} />
-            <Metric label="Activity" value={activity?.currentState ?? "—"} />
-            <Metric label="Duration" value={activity?.durationMinutes ?? "—"} unit="min" />
+            <Metric label="Activity" value={view.label} />
+            <Metric label="Duration" value={view.duration} unit={view.duration === "—" ? undefined : "min"} />
           </div>
 
           <button
