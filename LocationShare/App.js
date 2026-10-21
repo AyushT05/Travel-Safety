@@ -5,6 +5,7 @@ import AuthScreen from './screens/AuthScreen';
 import HomeScreen from './screens/HomeScreen';
 import CreateTravelCard from './screens/CreateTravelCard';
 import ActiveTracking from './screens/ActiveTracking';
+import { startSync } from './lib/sync';
 
 export default function App() {
   const [user, setUser]           = useState(null);
@@ -22,6 +23,15 @@ export default function App() {
     });
     return () => subscription.unsubscribe();
   }, []);
+
+  // Start the outbox sync (SOS + location uploads) for as long as someone is signed in.
+  useEffect(() => {
+    if (!user) return;
+    let stop;
+    let cancelled = false;
+    startSync().then((fn) => { if (cancelled) fn(); else stop = fn; }).catch((e) => console.warn('sync start failed', e));
+    return () => { cancelled = true; if (stop) stop(); };
+  }, [user?.id]);
 
   if (loading) return (
     <View style={s.splash}>

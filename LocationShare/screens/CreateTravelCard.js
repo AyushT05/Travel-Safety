@@ -1,4 +1,6 @@
 import React, { useState, useEffect } from 'react';
+import PlaceField from '../components/PlaceField';
+import { summarizeRisk, worstSeverity, SEVERITY_ORDER } from '../lib/placeRisk';
 import {
   View, Text, TextInput, TouchableOpacity, ScrollView,
   StyleSheet, ActivityIndicator, Platform, Alert, Modal,
@@ -55,6 +57,10 @@ export default function CreateTravelCard({ user, onDone, onBack }) {
   const [startPoint, setStartPoint]             = useState('');
   const [finalDestination, setFinalDestination] = useState('');
   const [waypoints, setWaypoints]               = useState([]);
+  // Place chosen from the search box + its safety check: { place, risk, loading, error } | null.
+  // `stops` runs parallel to `waypoints`.
+  const [placeInfo, setPlaceInfo] = useState({ start: null, dest: null, stops: [] });
+  const setStopInfo = (i, v) => setPlaceInfo(p => { const stops = [...p.stops]; stops[i] = v; return { ...p, stops }; });
 
   const [companions, setCompanions] = useState([{ name: '', phone: '' }]);
   const [emergency, setEmergency]   = useState([
@@ -182,6 +188,17 @@ export default function CreateTravelCard({ user, onDone, onBack }) {
       const places = [startPoint.trim(), ...waypoints.map(w => w.trim()).filter(Boolean), finalDestination.trim()]
         .filter(Boolean);
 
+      // Structured copy of each place (coordinates + a short risk summary). `places` below is
+      // unchanged, so the dashboard and scoring service keep working exactly as before.
+      const placeDetails = [
+        { text: startPoint, info: placeInfo.start },
+        ...waypoints.map((w, i) => ({ text: w, info: placeInfo.stops[i] })),
+        { text: finalDestination, info: placeInfo.dest },
+      ].filter(x => x.text.trim()).map(x => x.info?.place
+        ? { name: x.text.trim(), place_id: x.info.place.id, lat: x.info.place.lat, lon: x.info.place.lon,
+            state: x.info.place.state, district: x.info.place.district, risk: summarizeRisk(x.info.risk) }
+        : { name: x.text.trim(), verified: false });
+
       const { error } = await supabase.from('travel_cards').insert({
         user_id: user.id, full_name: fullName, mobile,
         document_type: docType, document_url: documentUrl,
@@ -192,6 +209,7 @@ export default function CreateTravelCard({ user, onDone, onBack }) {
         document_reasoning: verification.status === 'done' ? verification.reasoning : null,
         start_date: toDbDate(startDate), end_date: toDbDate(endDate),
         places,
+        place_details: placeDetails,
         companions: companions.filter(c => c.name.trim()),
         emergency_contacts: validEmergency,
         disclaimer_accepted: true, status: 'upcoming',
@@ -483,7 +501,12 @@ export default function CreateTravelCard({ user, onDone, onBack }) {
             />
 
             <FLabel text="Start Point" />
-            <FInput value={startPoint} onChange={setStartPoint} placeholder="Where does your trip begin?" />
+            <PlaceField
+              value={startPoint} onChangeText={setStartPoint}
+              info={placeInfo.start} onInfoChange={v => setPlaceInfo(p => ({ ...p, start: v }))}
+              startDate={startDate} endDate={endDate}
+              placeholder="Where does your trip begin? (search a city or place)"
+            />
 
             <FLabel text="Intermediate Stops" />
             <Text style={s.subDesc}>
@@ -491,15 +514,21 @@ export default function CreateTravelCard({ user, onDone, onBack }) {
               be flagged as unusual
             </Text>
             {waypoints.map((stop, i) => (
-              <View key={i} style={s.listRow}>
-                <View style={s.listNum}><Text style={s.listNumText}>{i + 1}</Text></View>
-                <TextInput
-                  style={[s.input, { flex: 1 }]} value={stop}
-                  onChangeText={t => { const n = [...waypoints]; n[i] = t; setWaypoints(n); }}
-                  placeholder={`Stop ${i + 1}`} placeholderTextColor="#C4BAA8"
+              <View key={i} style={[s.listRow, { alignItems: 'flex-start' }]}>
+                <View style={[s.listNum, { marginTop: 14 }]}><Text style={s.listNumText}>{i + 1}</Text></View>
+                <PlaceField
+                  style={{ flex: 1 }}
+                  value={stop}
+                  onChangeText={tx => { const n = [...waypoints]; n[i] = tx; setWaypoints(n); }}
+                  info={placeInfo.stops[i] ?? null} onInfoChange={v => setStopInfo(i, v)}
+                  startDate={startDate} endDate={endDate}
+                  placeholder={`Stop ${i + 1} (search a place)`}
                 />
-                <TouchableOpacity style={s.removeCircle}
-                  onPress={() => setWaypoints(waypoints.filter((_, j) => j !== i))}>
+                <TouchableOpacity style={[s.removeCircle, { marginTop: 14 }]}
+                  onPress={() => {
+                    setWaypoints(waypoints.filter((_, j) => j !== i));
+                    setPlaceInfo(p => ({ ...p, stops: p.stops.filter((_, j) => j !== i) }));
+                  }}>
                   <Feather name="x" size={12} color="#DC2626" />
                 </TouchableOpacity>
               </View>
@@ -507,7 +536,12 @@ export default function CreateTravelCard({ user, onDone, onBack }) {
             <AddRowBtn label="Add intermediate stop" onPress={() => setWaypoints([...waypoints, ''])} />
 
             <FLabel text="Final Destination" />
-            <FInput value={finalDestination} onChange={setFinalDestination} placeholder="Where does your trip end?" />
+            <PlaceField
+              value={finalDestination} onChangeText={setFinalDestination}
+              info={placeInfo.dest} onInfoChange={v => setPlaceInfo(p => ({ ...p, dest: v }))}
+              startDate={startDate} endDate={endDate}
+              placeholder="Where does your trip end? (search a city or place)"
+            />
 
             <FLabel text="Travel Companions" />
             <Text style={s.subDesc}>People travelling with you</Text>
@@ -533,6 +567,24 @@ export default function CreateTravelCard({ user, onDone, onBack }) {
               if (!startDate || !endDate) { Alert.alert('Required', 'Please select travel dates.'); return; }
               if (!startPoint.trim() || !finalDestination.trim()) {
                 Alert.alert('Required', 'Please enter a start point and final destination.'); return;
+              }
+              // Serious warnings do not block the trip, but the traveller must see them first.
+              const checks = [placeInfo.start, ...placeInfo.stops, placeInfo.dest].filter(i => i?.risk);
+              const serious = checks.filter(i => ['warning', 'danger'].includes(worstSeverity(i.risk)));
+              if (serious.length) {
+                const lines = serious.map(i => {
+                  const top = i.risk.warnings.find(w => SEVERITY_ORDER[w.severity] >= 2);
+                  return `• ${i.place.name}: ${top?.title ?? 'serious warning'}`;
+                }).join('\n');
+                Alert.alert(
+                  'Safety warnings for your trip',
+                  `${lines}\n\nPlease read them on this page. You can continue, but consider changing your dates or plans.`,
+                  [
+                    { text: 'Review', style: 'cancel' },
+                    { text: 'Continue anyway', onPress: () => setStep(3) },
+                  ]
+                );
+                return;
               }
               setStep(3);
             }} />

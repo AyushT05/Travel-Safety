@@ -10,6 +10,10 @@ import { supabase } from '../lib/supabase';
 import PanicButton from '../components/PanicButton';
 import SafetyBanner from '../components/SafetyBanner';
 import NearbyServices from '../components/NearbyServices';
+import { recordFix } from '../lib/locationRecorder';
+import { subscribe } from '../lib/sync';
+import { pendingCounts } from '../lib/localDb';
+import { ensureSmsPermission } from '../lib/smsFallback';
 
 export default function ActiveTracking({ user, card, onStop }) {
   const [isSharing, setIsSharing]       = useState(false);
@@ -17,6 +21,7 @@ export default function ActiveTracking({ user, card, onStop }) {
   const [updateCount, setUpdateCount]   = useState(0);
   const [serverError, setServerError]   = useState(false);
   const [permissionAsked, setPermissionAsked] = useState(false);
+  const [pending, setPending]       = useState({ locations: 0, sos: 0 });
 
   const subscriptionRef = useRef(null);
   const pulseAnim = useRef(new Animated.Value(1)).current;
@@ -24,6 +29,13 @@ export default function ActiveTracking({ user, card, onStop }) {
 
   const today   = new Date().toISOString().split('T')[0];
   const isToday = card.start_date <= today && card.end_date >= today;
+
+  // Show how many fixes are still waiting on this phone (offline / retrying).
+  useEffect(() => {
+    const refresh = () => pendingCounts().then(setPending).catch(() => {});
+    refresh();
+    return subscribe(refresh);
+  }, []);
 
   useEffect(() => {
     if (isToday && !permissionAsked) {
@@ -60,6 +72,7 @@ export default function ActiveTracking({ user, card, onStop }) {
     if (status !== 'granted') {
       Alert.alert('Permission denied', 'Please enable location access in Settings.'); return;
     }
+    ensureSmsPermission().catch(() => {}); // so an offline SOS can be texted without any taps
     setIsSharing(true); setUpdateCount(0); setServerError(false);
     startPulse();
     await supabase.from('travel_cards').update({ status: 'active' }).eq('id', card.id);
@@ -75,22 +88,11 @@ export default function ActiveTracking({ user, card, onStop }) {
         };
         setLocationData(data);
         setUpdateCount(c => c + 1);
-        // Writes straight to Supabase (RLS requires user_id === auth.uid()),
-        // replacing the old unauthenticated POST to the Render server.
-        // travel_card_id scopes this ping to THIS trip specifically — without
-        // it, a new trip's pings are indistinguishable from an old, finished
-        // trip's pings once both share the same user_id, which is exactly
-        // what was causing old trips' map trails and activity state to bleed
-        // into new ones.
-        const { error } = await supabase.from('locations').insert({
-          user_id: user.id,
-          travel_card_id: card.id,
-          lat: pos.coords.latitude,
-          lon: pos.coords.longitude,
-          accuracy: pos.coords.accuracy,
-          speed: pos.coords.speed,
-        });
-        setServerError(!!error);
+        // Durable first: the fix is saved to the phone's SQLite outbox, then uploaded by the
+        // SyncManager (batched, retried with backoff, idempotent via event_id). A network
+        // failure can no longer lose a fix. recorded_at on the server is the device time.
+        try { await recordFix(pos, { userId: user.id, travelCardId: card.id }); }
+        catch (e) { console.warn('could not store fix locally:', e?.message ?? e); }
       }
     );
   }
@@ -119,7 +121,7 @@ export default function ActiveTracking({ user, card, onStop }) {
       </View>
 
       <View style={{ paddingHorizontal: 20, marginBottom: 4 }}>
-        <PanicButton user={user} />
+        <PanicButton user={user} travelCardId={card.id} />
       </View>
 
       <View style={{ paddingHorizontal: 20, marginBottom: 4 }}>
@@ -182,10 +184,12 @@ export default function ActiveTracking({ user, card, onStop }) {
           </View>
         )}
 
-        {serverError && (
+        {pending.locations > 0 && (
           <View style={s.warnBox}>
             <Feather name="wifi-off" size={14} color="#92400E" />
-            <Text style={s.warnText}>Cannot reach server — retrying</Text>
+            <Text style={s.warnText}>
+              {pending.locations} location update{pending.locations === 1 ? '' : 's'} saved on this phone, waiting to upload
+            </Text>
           </View>
         )}
 
