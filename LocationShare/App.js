@@ -6,6 +6,7 @@ import HomeScreen from './screens/HomeScreen';
 import CreateTravelCard from './screens/CreateTravelCard';
 import ActiveTracking from './screens/ActiveTracking';
 import { startSync } from './lib/sync';
+import './lib/backgroundTracking'; // registers the background location task at load time
 
 export default function App() {
   const [user, setUser]           = useState(null);

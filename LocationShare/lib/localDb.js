@@ -25,6 +25,15 @@ export function getDb() {
           created_at    INTEGER NOT NULL            -- epoch ms
         );
         CREATE INDEX IF NOT EXISTS outbox_kind_status_idx ON outbox (kind, status, created_at);
+        -- Which trip the background task should record for. The task can run with no UI
+        -- mounted, so it cannot rely on React state.
+        CREATE TABLE IF NOT EXISTS tracking_context (
+          id             INTEGER PRIMARY KEY CHECK (id = 1),
+          user_id        TEXT NOT NULL,
+          travel_card_id TEXT NOT NULL,
+          end_date       TEXT,                      -- YYYY-MM-DD, tracking stops itself after this day
+          started_at     INTEGER NOT NULL
+        );
         CREATE TABLE IF NOT EXISTS last_reliable_fix (
           id          INTEGER PRIMARY KEY CHECK (id = 1),
           lat         REAL NOT NULL,
@@ -175,4 +184,27 @@ export async function getLastFix() {
   const db = await getDb();
   const r = await db.getFirstAsync(`SELECT lat, lon, accuracy, observed_at FROM last_reliable_fix WHERE id = 1`);
   return r ? { lat: r.lat, lon: r.lon, accuracy: r.accuracy, observedAt: r.observed_at } : null;
+}
+
+// ------------------------------------------------------------ tracking context
+
+export async function setTrackingContext({ userId, travelCardId, endDate }) {
+  const db = await getDb();
+  await db.runAsync(
+    `INSERT INTO tracking_context (id, user_id, travel_card_id, end_date, started_at) VALUES (1, ?, ?, ?, ?)
+     ON CONFLICT(id) DO UPDATE SET user_id = excluded.user_id, travel_card_id = excluded.travel_card_id,
+       end_date = excluded.end_date, started_at = excluded.started_at`,
+    [userId, travelCardId, endDate ?? null, Date.now()]
+  );
+}
+
+export async function getTrackingContext() {
+  const db = await getDb();
+  const r = await db.getFirstAsync(`SELECT user_id, travel_card_id, end_date FROM tracking_context WHERE id = 1`);
+  return r ? { userId: r.user_id, travelCardId: r.travel_card_id, endDate: r.end_date } : null;
+}
+
+export async function clearTrackingContext() {
+  const db = await getDb();
+  await db.runAsync(`DELETE FROM tracking_context WHERE id = 1`);
 }

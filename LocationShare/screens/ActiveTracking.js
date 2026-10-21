@@ -14,6 +14,8 @@ import { recordFix } from '../lib/locationRecorder';
 import { subscribe } from '../lib/sync';
 import { pendingCounts } from '../lib/localDb';
 import { ensureSmsPermission } from '../lib/smsFallback';
+import { startBackgroundTracking, stopBackgroundTracking, askBackgroundDisclosure, isBackgroundTrackingActive } from '../lib/backgroundTracking';
+import { classifyFreshness } from '../lib/locationQuality';
 
 export default function ActiveTracking({ user, card, onStop }) {
   const [isSharing, setIsSharing]       = useState(false);
@@ -22,6 +24,10 @@ export default function ActiveTracking({ user, card, onStop }) {
   const [serverError, setServerError]   = useState(false);
   const [permissionAsked, setPermissionAsked] = useState(false);
   const [pending, setPending]       = useState({ locations: 0, sos: 0 });
+  const [background, setBackground] = useState(false);   // true: the foreground service is recording
+  const [bgNote, setBgNote]         = useState(null);    // why background tracking is off, if it is
+  const [now, setNow]               = useState(Date.now());
+  const backgroundRef = useRef(false);                   // read inside the watcher callback
 
   const subscriptionRef = useRef(null);
   const pulseAnim = useRef(new Animated.Value(1)).current;
@@ -35,6 +41,21 @@ export default function ActiveTracking({ user, card, onStop }) {
     const refresh = () => pendingCounts().then(setPending).catch(() => {});
     refresh();
     return subscribe(refresh);
+  }, []);
+
+  // Re-evaluate freshness every few seconds so a silent GPS shows STALE instead of freezing on LIVE.
+  useEffect(() => {
+    const t = setInterval(() => setNow(Date.now()), 3000);
+    return () => clearInterval(t);
+  }, []);
+
+  // Leaving the screen must not leak the foreground watcher. The background service is NOT
+  // stopped here: it ends only on Stop, or when the trip ends.
+  useEffect(() => () => { subscriptionRef.current?.remove(); subscriptionRef.current = null; }, []);
+
+  // Reopened while the service is still running (e.g. the app was swiped away): reflect that.
+  useEffect(() => {
+    isBackgroundTrackingActive().then((on) => { if (on) { backgroundRef.current = true; setBackground(true); } });
   }, []);
 
   useEffect(() => {
@@ -73,6 +94,18 @@ export default function ActiveTracking({ user, card, onStop }) {
       Alert.alert('Permission denied', 'Please enable location access in Settings.'); return;
     }
     ensureSmsPermission().catch(() => {}); // so an offline SOS can be texted without any taps
+    // Background tracking is best effort: the disclosure can be declined, and Expo Go cannot do it.
+    // Either way foreground sharing still works and records through the watcher below.
+    let bg = { ok: false, reason: 'declined' };
+    if (await askBackgroundDisclosure()) {
+      bg = await startBackgroundTracking({ userId: user.id, travelCardId: card.id, endDate: card.end_date });
+    }
+    backgroundRef.current = bg.ok;
+    setBackground(bg.ok);
+    setBgNote(bg.ok ? null : bg.reason === 'declined' ? 'Background tracking is off. Updates pause when the app is closed.'
+      : bg.reason === 'background_permission_denied' ? 'Background location was not allowed. Updates pause when the app is closed.'
+      : 'Background tracking is not available in this build. Updates pause when the app is closed.');
+
     setIsSharing(true); setUpdateCount(0); setServerError(false);
     startPulse();
     await supabase.from('travel_cards').update({ status: 'active' }).eq('id', card.id);
@@ -85,14 +118,19 @@ export default function ActiveTracking({ user, card, onStop }) {
           lat: pos.coords.latitude,
           lon: pos.coords.longitude,
           accuracy: pos.coords.accuracy,
+          observedAt: pos.timestamp || Date.now(),
         };
         setLocationData(data);
         setUpdateCount(c => c + 1);
         // Durable first: the fix is saved to the phone's SQLite outbox, then uploaded by the
         // SyncManager (batched, retried with backoff, idempotent via event_id). A network
         // failure can no longer lose a fix. recorded_at on the server is the device time.
-        try { await recordFix(pos, { userId: user.id, travelCardId: card.id }); }
-        catch (e) { console.warn('could not store fix locally:', e?.message ?? e); }
+        // While the background service is running it is the single recorder; recording here too
+        // would store every fix twice.
+        if (!backgroundRef.current) {
+          try { await recordFix(pos, { userId: user.id, travelCardId: card.id }); }
+          catch (e) { console.warn('could not store fix locally:', e?.message ?? e); }
+        }
       }
     );
   }
@@ -100,6 +138,8 @@ export default function ActiveTracking({ user, card, onStop }) {
   async function stopSharing() {
     subscriptionRef.current?.remove();
     subscriptionRef.current = null;
+    await stopBackgroundTracking();
+    backgroundRef.current = false; setBackground(false); setBgNote(null);
     setIsSharing(false); setLocationData(null);
     setUpdateCount(0); setServerError(false);
     stopPulse();
@@ -181,6 +221,17 @@ export default function ActiveTracking({ user, card, onStop }) {
         {isSharing && locationData && (
           <View style={s.statsRow}>
             <StatCard icon="crosshair" label="Accuracy" value={`${locationData.accuracy.toFixed(0)} m`} />
+            <StatCard icon="clock" label="Fix status"
+              value={classifyFreshness({ observedAtMs: locationData.observedAt, accuracy: locationData.accuracy, now })} />
+          </View>
+        )}
+
+        {isSharing && (
+          <View style={background ? s.okBox : s.warnBox}>
+            <Feather name={background ? 'shield' : 'alert-triangle'} size={14} color={background ? '#166534' : '#92400E'} />
+            <Text style={background ? s.okText : s.warnText}>
+              {background ? 'Tracking continues when the app is closed.' : bgNote}
+            </Text>
           </View>
         )}
 
@@ -317,7 +368,13 @@ const s = StyleSheet.create({
     backgroundColor: '#FFFBEB', borderWidth: 1, borderColor: '#FDE68A',
     borderRadius: 12, padding: 12, marginBottom: 16,
   },
-  warnText: { fontSize: 13, color: '#92400E', fontWeight: '500' },
+  warnText: { fontSize: 13, color: '#92400E', fontWeight: '500', flex: 1 },
+  okBox: {
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+    backgroundColor: '#F0FDF4', borderWidth: 1, borderColor: '#BBF7D0',
+    borderRadius: 12, padding: 12, marginBottom: 16,
+  },
+  okText: { fontSize: 13, color: '#166534', fontWeight: '500', flex: 1 },
 
   startBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10,

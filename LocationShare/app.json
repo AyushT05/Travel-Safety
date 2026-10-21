@@ -7,11 +7,6 @@
     "scheme": "livetracker",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
-    "splash": {
-      "image": "./assets/splash.png",
-      "resizeMode": "contain",
-      "backgroundColor": "#F4F1EC"
-    },
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "com.ayusht05.locationshare",
@@ -29,8 +24,11 @@
       "permissions": [
         "ACCESS_FINE_LOCATION",
         "ACCESS_COARSE_LOCATION",
-        "android.permission.ACCESS_COARSE_LOCATION",
-        "android.permission.ACCESS_FINE_LOCATION"
+        "ACCESS_BACKGROUND_LOCATION",
+        "FOREGROUND_SERVICE",
+        "FOREGROUND_SERVICE_LOCATION",
+        "POST_NOTIFICATIONS",
+        "SEND_SMS"
       ],
       "intentFilters": [
         {
@@ -52,13 +50,17 @@
       [
         "expo-location",
         {
-          "locationAlwaysAndWhenInUsePermission": "Margarakshak needs your location to keep you safe during your journey."
+          "locationAlwaysAndWhenInUsePermission": "Margarakshak needs your location to keep you safe during your journey, including when the app is closed.",
+          "isAndroidBackgroundLocationEnabled": true,
+          "isAndroidForegroundServiceEnabled": true,
+          "isIosBackgroundLocationEnabled": true
         }
       ],
       "expo-web-browser",
       "expo-font",
       "expo-status-bar",
-      "expo-sqlite"
+      "expo-sqlite",
+      "@react-native-community/datetimepicker"
     ],
     "extra": {
       "eas": {
