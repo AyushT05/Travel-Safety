@@ -21,6 +21,7 @@ function IncidentCard({ inc, card, onAct, onFocus }) {
   const [open, setOpen] = useState(inc.level === "critical");
   const [busy, setBusy] = useState(false);
   const [reason, setReason] = useState("");
+  const [error, setError] = useState(null);
   const brief = inc.brief;
   const contacts = card?.emergency_contacts || [];
   const name =
@@ -28,8 +29,18 @@ function IncidentCard({ inc, card, onAct, onFocus }) {
 
   async function run(action, opts) {
     setBusy(true);
-    await onAct(inc, action, opts);
-    setBusy(false);
+    setError(null);
+    try {
+      const result = await onAct(inc, action, opts);
+      if (result?.error) {
+        setError(`Failed to ${action}: ${result.error.message || 'Unknown error'}`);
+      }
+    } catch (e) {
+      setError(`Failed to ${action}: ${e.message || 'Unknown error'}`);
+      console.error(`Incident action ${action} failed:`, e);
+    } finally {
+      setBusy(false);
+    }
   }
 
   return (
@@ -69,6 +80,9 @@ function IncidentCard({ inc, card, onAct, onFocus }) {
                 <>
                   <h4>Last known position</h4>
                   <p>
+                    {brief.last_known.location_name && (
+                      <><strong>{brief.last_known.location_name}</strong><br /></>
+                    )}
                     {brief.last_known.lat.toFixed(5)}, {brief.last_known.lon.toFixed(5)} · {ago(brief.last_known.at)}
                     {brief.last_known.accuracy_m != null && ` · accuracy ${Math.round(brief.last_known.accuracy_m)} m`}{" "}
                     {inc.user_id && <button className="inc-link" onClick={() => onFocus(inc.user_id)}>Show on map</button>}
@@ -131,15 +145,35 @@ function IncidentCard({ inc, card, onAct, onFocus }) {
 
           <div className="inc-actions">
             {inc.status === "open" && (
-              <button className="inc-btn primary" disabled={busy} onClick={() => run("acknowledged")}>Acknowledge</button>
+              <button className="inc-btn primary" disabled={busy} onClick={() => run("acknowledged")}>
+                {busy ? "Processing..." : "Acknowledge"}
+              </button>
             )}
-            <button className="inc-btn" disabled={busy} onClick={() => run("resolved")}>Resolve</button>
+            <button className="inc-btn" disabled={busy} onClick={() => run("resolved")}>
+              {busy ? "Processing..." : "Resolve"}
+            </button>
             <select className="inc-select" value={reason} onChange={(e) => setReason(e.target.value)}>
               <option value="">Dismiss as…</option>
               {DISMISS_REASONS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
             </select>
-            <button className="inc-btn" disabled={busy || !reason} onClick={() => run("dismissed", { reason })}>Dismiss</button>
+            <button className="inc-btn" disabled={busy || !reason} onClick={() => run("dismissed", { reason })}>
+              {busy ? "Processing..." : "Dismiss"}
+            </button>
           </div>
+
+          {error && (
+            <div className="inc-error" style={{
+              backgroundColor: '#FEE2E2',
+              border: '1px solid #FCA5A5',
+              borderRadius: '8px',
+              padding: '12px',
+              marginTop: '12px',
+              color: '#991B1B',
+              fontSize: '13px'
+            }}>
+              {error}
+            </div>
+          )}
 
           <div className="inc-disclaimer">
             These signals can have ordinary explanations. Whether someone needs help, and who gets contacted, is decided by an authorised person.

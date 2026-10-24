@@ -13,6 +13,7 @@ export default function App() {
   const [loading, setLoading]     = useState(true);
   const [screen, setScreen]       = useState('home'); // home | create | tracking
   const [activeCard, setActiveCard] = useState(null);
+  const [trackingState, setTrackingState] = useState(null); // persisted tracking state
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -54,7 +55,13 @@ export default function App() {
     <ActiveTracking
       user={user}
       card={activeCard}
-      onStop={() => { setActiveCard(null); setScreen('home'); }}
+      trackingState={trackingState}
+      onTrackingStateChange={setTrackingState}
+      onStop={() => {
+        setActiveCard(null);
+        setTrackingState(null);
+        setScreen('home');
+      }}
     />
   );
 

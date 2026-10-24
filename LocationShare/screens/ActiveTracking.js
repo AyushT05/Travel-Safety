@@ -17,17 +17,17 @@ import { ensureSmsPermission } from '../lib/smsFallback';
 import { startBackgroundTracking, stopBackgroundTracking, askBackgroundDisclosure, isBackgroundTrackingActive } from '../lib/backgroundTracking';
 import { classifyFreshness } from '../lib/locationQuality';
 
-export default function ActiveTracking({ user, card, onStop }) {
-  const [isSharing, setIsSharing]       = useState(false);
-  const [locationData, setLocationData] = useState(null);
-  const [updateCount, setUpdateCount]   = useState(0);
+export default function ActiveTracking({ user, card, onStop, trackingState, onTrackingStateChange }) {
+  const [isSharing, setIsSharing]       = useState(trackingState?.isSharing || false);
+  const [locationData, setLocationData] = useState(trackingState?.locationData || null);
+  const [updateCount, setUpdateCount]   = useState(trackingState?.updateCount || 0);
   const [serverError, setServerError]   = useState(false);
-  const [permissionAsked, setPermissionAsked] = useState(false);
+  const [permissionAsked, setPermissionAsked] = useState(trackingState?.permissionAsked || false);
   const [pending, setPending]       = useState({ locations: 0, sos: 0 });
-  const [background, setBackground] = useState(false);   // true: the foreground service is recording
-  const [bgNote, setBgNote]         = useState(null);    // why background tracking is off, if it is
+  const [background, setBackground] = useState(trackingState?.background || false);   // true: the foreground service is recording
+  const [bgNote, setBgNote]         = useState(trackingState?.bgNote || null);    // why background tracking is off, if it is
   const [now, setNow]               = useState(Date.now());
-  const backgroundRef = useRef(false);                   // read inside the watcher callback
+  const backgroundRef = useRef(trackingState?.background || false);                   // read inside the watcher callback
 
   const subscriptionRef = useRef(null);
   const pulseAnim = useRef(new Animated.Value(1)).current;
@@ -35,6 +35,20 @@ export default function ActiveTracking({ user, card, onStop }) {
 
   const today   = new Date().toISOString().split('T')[0];
   const isToday = card.start_date <= today && card.end_date >= today;
+
+  // Persist tracking state to parent so it survives navigation
+  useEffect(() => {
+    if (onTrackingStateChange) {
+      onTrackingStateChange({
+        isSharing,
+        locationData,
+        updateCount,
+        permissionAsked,
+        background,
+        bgNote,
+      });
+    }
+  }, [isSharing, locationData, updateCount, permissionAsked, background, bgNote, onTrackingStateChange]);
 
   // Show how many fixes are still waiting on this phone (offline / retrying).
   useEffect(() => {
@@ -49,13 +63,64 @@ export default function ActiveTracking({ user, card, onStop }) {
     return () => clearInterval(t);
   }, []);
 
-  // Leaving the screen must not leak the foreground watcher. The background service is NOT
-  // stopped here: it ends only on Stop, or when the trip ends.
-  useEffect(() => () => { subscriptionRef.current?.remove(); subscriptionRef.current = null; }, []);
+  // Clean up the foreground watcher only when the component unmounts AND we're not actively sharing.
+  // If we're sharing but the screen is left (navigating away), keep the foreground watcher alive
+  // so updates continue even without background tracking. The watcher stops only via the Stop button.
+  useEffect(() => {
+    return () => {
+      // Only remove watcher if sharing was explicitly stopped (isSharing is false)
+      // Don't remove it when just navigating away while sharing is active
+      if (!isSharing) {
+        subscriptionRef.current?.remove();
+        subscriptionRef.current = null;
+      }
+    };
+  }, [isSharing]);
 
   // Reopened while the service is still running (e.g. the app was swiped away): reflect that.
+  // Also restart the foreground watcher if we were sharing when we left.
   useEffect(() => {
-    isBackgroundTrackingActive().then((on) => { if (on) { backgroundRef.current = true; setBackground(true); } });
+    let mounted = true;
+
+    async function restore() {
+      const on = await isBackgroundTrackingActive();
+      if (!mounted) return;
+      if (on) {
+        backgroundRef.current = true;
+        setBackground(true);
+      }
+
+      // If we were sharing when we navigated away, restart the foreground watcher
+      if (trackingState?.isSharing && !subscriptionRef.current) {
+        const sub = await Location.watchPositionAsync(
+          { accuracy: Location.Accuracy.High, timeInterval: 5000, distanceInterval: 0 },
+          async (pos) => {
+            const data = {
+              name: user.id,
+              lat: pos.coords.latitude,
+              lon: pos.coords.longitude,
+              accuracy: pos.coords.accuracy,
+              observedAt: pos.timestamp || Date.now(),
+            };
+            setLocationData(data);
+            setUpdateCount(c => c + 1);
+            if (!backgroundRef.current) {
+              try { await recordFix(pos, { userId: user.id, travelCardId: card.id }); }
+              catch (e) { console.warn('could not store fix locally:', e?.message ?? e); }
+            }
+          }
+        );
+        if (mounted) {
+          subscriptionRef.current = sub;
+          startPulse();
+        } else {
+          sub.remove();
+        }
+      }
+    }
+
+    restore();
+    return () => { mounted = false; };
   }, []);
 
   useEffect(() => {
