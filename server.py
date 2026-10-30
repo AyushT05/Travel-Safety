@@ -496,6 +496,101 @@ class Handler(SimpleHTTPRequestHandler):
                 self.send_header("Content-Type", "application/json")
                 self.end_headers()
                 self.wfile.write(json.dumps({"error": str(e)}).encode())
+        elif self.path == "/api/plan-route":
+            length = int(self.headers.get("Content-Length", 0))
+            body = json.loads(self.rfile.read(length)) if length else {}
+            waypoints = body.get("waypoints", [])
+
+            valid_wps = []
+            for wp in waypoints:
+                if wp.get("lat") is not None and wp.get("lon") is not None:
+                    valid_wps.append((float(wp["lat"]), float(wp["lon"])))
+
+            if len(valid_wps) < 2:
+                self.send_response(400)
+                self._cors()
+                self.end_headers()
+                self.wfile.write(b'{"error": "At least 2 valid waypoints required"}')
+                return
+
+            try:
+                coords_str = ";".join(f"{lon:.6f},{lat:.6f}" for lat, lon in valid_wps)
+                osrm_url = f"https://router.project-osrm.org/route/v1/driving/{coords_str}?overview=full&geometries=geojson&steps=true"
+                req = request.Request(osrm_url, headers={"User-Agent": "MargRakshak-TravelSafety/1.0"})
+                with request.urlopen(req, timeout=10) as resp:
+                    osrm_data = json.loads(resp.read().decode())
+                
+                if osrm_data.get("code") == "Ok" and osrm_data.get("routes"):
+                    r0 = osrm_data["routes"][0]
+                    coords = r0.get("geometry", {}).get("coordinates", [])
+                    polyline = [[c[1], c[0]] for c in coords] # to [lat, lon]
+                    res = {
+                        "success": True,
+                        "source": "osrm",
+                        "total_distance_km": round(r0.get("distance", 0.0) / 1000.0, 2),
+                        "total_duration_hours": round(r0.get("duration", 0.0) / 3600.0, 2),
+                        "polyline": polyline,
+                        "legs": r0.get("legs", []),
+                    }
+                else:
+                    raise ValueError("OSRM did not return Ok")
+            except Exception as e:
+                # Fallback: simple interpolation
+                polyline = []
+                total_km = 0.0
+                for i in range(len(valid_wps) - 1):
+                    p1, p2 = valid_wps[i], valid_wps[i + 1]
+                    total_km += haversine_distance(p1[0], p1[1], p2[0], p2[1])
+                    for f in [0.0, 0.25, 0.5, 0.75]:
+                        polyline.append([p1[0] + (p2[0] - p1[0]) * f, p1[1] + (p2[1] - p1[1]) * f])
+                polyline.append([valid_wps[-1][0], valid_wps[-1][1]])
+                res = {
+                    "success": True,
+                    "source": "interpolated_fallback",
+                    "total_distance_km": round(total_km, 2),
+                    "total_duration_hours": round(total_km / 50.0, 2),
+                    "polyline": polyline,
+                    "legs": [],
+                }
+
+            self.send_response(200)
+            self._cors()
+            self.send_header("Content-Type", "application/json")
+            self.end_headers()
+            self.wfile.write(json.dumps(res).encode())
+
+        elif self.path == "/api/check-deviation":
+            length = int(self.headers.get("Content-Length", 0))
+            body = json.loads(self.rfile.read(length)) if length else {}
+            lat = body.get("lat")
+            lon = body.get("lon")
+            polyline = body.get("polyline", [])
+
+            if lat is None or lon is None or not polyline:
+                self.send_response(400)
+                self._cors()
+                self.end_headers()
+                self.wfile.write(b'{"error": "lat, lon, and polyline required"}')
+                return
+
+            min_dist_m = float("inf")
+            for pt in polyline:
+                d = haversine_distance(lat, lon, pt[0], pt[1]) * 1000.0
+                if d < min_dist_m:
+                    min_dist_m = d
+
+            status = "on_route" if min_dist_m <= 500.0 else "caution" if min_dist_m <= 1500.0 else "deviated"
+            res = {
+                "deviation_distance_m": round(min_dist_m, 1),
+                "status": status,
+                "is_deviated": min_dist_m > 1500.0
+            }
+            self.send_response(200)
+            self._cors()
+            self.send_header("Content-Type", "application/json")
+            self.end_headers()
+            self.wfile.write(json.dumps(res).encode())
+
         elif self.path == "/api/assess-safety":
             # Safety assessment endpoint
             length = int(self.headers.get("Content-Length", 0))

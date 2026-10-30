@@ -15,8 +15,12 @@ import useAlerts from "./hooks/useAlerts";
 import useIncidents from "./hooks/useIncidents";
 import useSafetyAssessments from "./hooks/useSafetyAssessments";
 import SafetyPanel from "./components/SafetyPanel";
+import RiskLayerPanel from "./components/RiskLayerPanel";
+import useRiskZones from "./hooks/useRiskZones";
+import useAlertHeat from "./hooks/useAlertHeat";
+import { zoneCenter, zoneContribution } from "./lib/risk/model";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 
 import { useAuth } from "./context/AuthContext";
 
@@ -32,6 +36,27 @@ export default function App() {
   const { assessments: safetyAssessments } = useSafetyAssessments();
   const { incidents, urgentCount, act: actOnIncident } = useIncidents();
   const [showIncidents, setShowIncidents] = useState(false);
+
+  // Risk overlays: heat map of recorded hazard zones, past-alert heat, tourist clusters / density.
+  const [riskOptions, setRiskOptions] = useState({
+    riskHeat: true, zoneOutlines: true, showInactive: false, clusters: true, density: false,
+    alertHeat: false, alertTypes: ["panic", "geofence_entry", "dropout"], alertHours: 24 * 7, at: null,
+  });
+  const risk = useRiskZones();
+  const alertHeat = useAlertHeat({
+    enabled: riskOptions.alertHeat, hours: riskOptions.alertHours, types: riskOptions.alertTypes,
+  });
+  const riskStats = useMemo(() => {
+    const t = riskOptions.at || risk.loadedAt || new Date();     // loadedAt moves every minute, so "now" stays current
+    let activeZones = 0, inactiveZones = 0;
+    for (const z of risk.zones) {
+      try {
+        const c = zoneCenter(z);
+        if (zoneContribution(z, t, c.lat, c.lon).value >= 0.01) activeZones += 1; else inactiveZones += 1;
+      } catch { /* malformed geometry */ }
+    }
+    return { activeZones, inactiveZones, loading: risk.loading, error: risk.error, alertCount: alertHeat.points.length };
+  }, [risk.zones, risk.loadedAt, risk.loading, risk.error, riskOptions.at, alertHeat.points.length]);
 
   const [showAlertsPanel, setShowAlertsPanel] =
     useState(false);
@@ -137,10 +162,15 @@ export default function App() {
             follow={follow}
             selected={selected}
             safetyAssessments={safetyAssessments}
+            riskZones={risk.zones}
+            alertHeat={alertHeat.points}
+            riskOptions={riskOptions}
             setMapActions={
               setMapActions
             }
           />
+
+          <RiskLayerPanel options={riskOptions} setOptions={setRiskOptions} stats={riskStats} />
 
           <MapControls
             follow={follow}

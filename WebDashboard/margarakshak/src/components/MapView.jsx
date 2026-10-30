@@ -1,10 +1,60 @@
 import {
   useEffect,
   useRef,
+  useState,
 } from "react";
 
 import L from "leaflet";
 import { colorFor, findCurrentCard } from "../utils/helpers";
+import { getRoadRoute } from "../utils/routeService";
+import useRiskLayers from "../hooks/useRiskLayers";
+
+function makeGoogleDestinationPin() {
+  return L.divIcon({
+    className: "gmaps-pin-marker",
+    html: `
+      <div style="position:relative;width:30px;height:40px;transform:translate(-50%,-100%);">
+        <svg width="30" height="40" viewBox="0 0 32 42" fill="none" xmlns="http://www.w3.org/2000/svg" style="filter:drop-shadow(0px 3px 6px rgba(0,0,0,0.45));">
+          <path d="M16 0C7.163 0 0 7.163 0 16c0 11.5 14.5 25.1 15.1 25.7.5.5 1.3.5 1.8 0C17.5 41.1 32 27.5 32 16 32 7.163 24.837 0 16 0z" fill="#EA4335"/>
+          <circle cx="16" cy="15" r="6.5" fill="#FFFFFF"/>
+        </svg>
+      </div>
+    `,
+    iconSize: [0, 0],
+    iconAnchor: [0, 0],
+    popupAnchor: [0, -40],
+  });
+}
+
+function makeGoogleOriginPin() {
+  return L.divIcon({
+    className: "gmaps-origin-marker",
+    html: `
+      <div style="position:relative;width:22px;height:22px;transform:translate(-50%,-50%);">
+        <div style="width:20px;height:20px;border-radius:50%;background:#0F9D58;border:3px solid #FFFFFF;box-shadow:0 2px 6px rgba(0,0,0,0.4);display:flex;align-items:center;justify-content:center;">
+          <div style="width:6px;height:6px;border-radius:50%;background:#FFFFFF;"></div>
+        </div>
+      </div>
+    `,
+    iconSize: [0, 0],
+    iconAnchor: [0, 0],
+  });
+}
+
+function makeGoogleStopPin(label) {
+  return L.divIcon({
+    className: "gmaps-stop-marker",
+    html: `
+      <div style="position:relative;width:20px;height:20px;transform:translate(-50%,-50%);">
+        <div style="width:18px;height:18px;border-radius:50%;background:#1A73E8;border:2.5px solid #FFFFFF;box-shadow:0 1.5px 5px rgba(0,0,0,0.35);display:flex;align-items:center;justify-content:center;color:#FFFFFF;font-size:10px;font-weight:700;">
+          ${label}
+        </div>
+      </div>
+    `,
+    iconSize: [0, 0],
+    iconAnchor: [0, 0],
+  });
+}
 
 function makeLiveIcon(color, initials, isUnsafe = false) {
   return L.divIcon({
@@ -51,14 +101,23 @@ export default function MapView({
   selected,
   setMapActions,
   safetyAssessments = {},
+  riskZones = [],
+  alertHeat = [],
+  riskOptions = null,
 }) {
   const mapRef = useRef(null);
+
+  // The Leaflet instance as state, so the risk overlays can attach once it exists.
+  const [mapInstance, setMapInstance] = useState(null);
 
   const leafletMap = useRef(null);
 
   const markersRef = useRef({});
 
   const trailsRef = useRef({});
+  const plannedRoutesRef = useRef({});
+  const waypointMarkersRef = useRef({});
+  const deviationLinesRef = useRef({});
 
   // Last trail array drawn per device. Trails are owned by useDevices
   // (device.trail); the map only mirrors them, and only redraws when the
@@ -102,16 +161,29 @@ export default function MapView({
     ).addTo(map);
 
     leafletMap.current = map;
+    setMapInstance(map);
 
     setTimeout(() => {
       map.invalidateSize();
     }, 200);
 
     return () => {
+      setMapInstance(null);
       map.remove();
       leafletMap.current = null;
     };
   }, []);
+
+  // Risk heat map, zone outlines, past-alert heat, tourist density and clusters (all off unless
+  // riskOptions switches them on).
+  useRiskLayers(mapInstance, {
+    zones: riskZones,
+    alertPoints: alertHeat,
+    devices,
+    markersRef,
+    selectedId: selected,
+    options: riskOptions,
+  });
 
   // Expose actions to parent
   useEffect(() => {
@@ -253,6 +325,115 @@ export default function MapView({
           trail.setLatLngs(trailPts);
           trailSeenRef.current[id] = d.trail;
         }
+
+        // Draw Google Maps authentic road route & pins
+        if (card) {
+          getRoadRoute(card).then((routeRes) => {
+            if (!routeRes || !routeRes.polyline || routeRes.polyline.length < 2) return;
+            const pts = routeRes.polyline;
+            const currentRouteKey = `${card.id}:${pts.length}:${pts[0][0]}`;
+
+            let existing = plannedRoutesRef.current[id];
+            if (!existing || existing.key !== currentRouteKey) {
+              if (existing) {
+                if (existing.casing) existing.casing.remove();
+                if (existing.core) existing.core.remove();
+              }
+
+              // Google Maps authentic dual-layer solid road ribbon
+              const casing = L.polyline(pts, {
+                color: "#185ABC",
+                weight: 8,
+                opacity: 0.92,
+                lineCap: "round",
+                lineJoin: "round",
+              }).addTo(map);
+
+              const core = L.polyline(pts, {
+                color: "#4285F4",
+                weight: 5.5,
+                opacity: 1.0,
+                lineCap: "round",
+                lineJoin: "round",
+              }).addTo(map);
+
+              const routeTitle = card.places?.length
+                ? card.places.join(" → ")
+                : "Planned Route";
+              const distanceInfo = routeRes.distanceKm ? ` · ${routeRes.distanceKm} km` : "";
+              core.bindTooltip(`🛣️ ${routeTitle}${distanceInfo}`, { sticky: true });
+
+              plannedRoutesRef.current[id] = { casing, core, key: currentRouteKey, polyline: pts };
+
+              // Place Google Maps styled waypoint markers
+              if (waypointMarkersRef.current[id]) {
+                waypointMarkersRef.current[id].forEach((m) => m.remove());
+              }
+              const wpMarkers = [];
+              const wps = routeRes.waypoints || [];
+              if (wps.length >= 2) {
+                // Origin (Green Pin)
+                const startMarker = L.marker([wps[0].lat, wps[0].lon], {
+                  icon: makeGoogleOriginPin(),
+                }).addTo(map);
+                startMarker.bindPopup(`<b>Origin:</b> ${wps[0].name}`);
+                wpMarkers.push(startMarker);
+
+                // Intermediate stops (Numbered stop pins)
+                for (let i = 1; i < wps.length - 1; i++) {
+                  const stopMarker = L.marker([wps[i].lat, wps[i].lon], {
+                    icon: makeGoogleStopPin(i),
+                  }).addTo(map);
+                  stopMarker.bindPopup(`<b>Stop ${i}:</b> ${wps[i].name}`);
+                  wpMarkers.push(stopMarker);
+                }
+
+                // Destination (Iconic Google Maps Red Pin)
+                const dest = wps[wps.length - 1];
+                const destMarker = L.marker([dest.lat, dest.lon], {
+                  icon: makeGoogleDestinationPin(),
+                }).addTo(map);
+                destMarker.bindPopup(`<b>Destination:</b> ${dest.name}`);
+                wpMarkers.push(destMarker);
+              }
+              waypointMarkersRef.current[id] = wpMarkers;
+            }
+
+            // Draw deviation indicator if active deviation alert exists
+            const activePts = plannedRoutesRef.current[id]?.polyline || pts;
+            const openDevAlert = (alerts || []).find(
+              (a) => (a.user_id === id || a.travel_card_id === card?.id) && a.type === "deviation" && a.status === "open"
+            );
+            let devLine = deviationLinesRef.current[id];
+            if (openDevAlert && activePts && d.lastLatlng) {
+              let closestPt = activePts[0];
+              let minDist = Infinity;
+              for (const pt of activePts) {
+                const dist = Math.hypot(pt[0] - d.lastLatlng[0], pt[1] - d.lastLatlng[1]);
+                if (dist < minDist) {
+                  minDist = dist;
+                  closestPt = pt;
+                }
+              }
+              const linePts = [d.lastLatlng, closestPt];
+              if (!devLine) {
+                devLine = L.polyline(linePts, {
+                  color: "#dc2626",
+                  weight: 3.5,
+                  dashArray: "5, 6",
+                  opacity: 0.95,
+                }).addTo(map);
+                devLine.bindTooltip(openDevAlert.message || "Route deviation", { permanent: true, direction: "top" });
+                deviationLinesRef.current[id] = devLine;
+              } else {
+                devLine.setLatLngs(linePts);
+              }
+            } else if (devLine) {
+              devLine.remove();
+              delete deviationLinesRef.current[id];
+            }
+          });
+        }
       }
     );
 
@@ -287,7 +468,7 @@ export default function MapView({
         });
       }
     }
-  }, [devices, travelCards, follow, safetyAssessments]);
+  }, [devices, travelCards, alerts, follow, safetyAssessments]);
 
   // Zoom to the selected device whenever a sidebar card is clicked. This is
   // deliberately its own effect, keyed only on `selected` (not on every

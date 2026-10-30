@@ -12,6 +12,9 @@ const ACTIVITY_LABELS = {
   WALKING: "Walking",
   RESTING: "Resting",
   IN_VEHICLE: "In vehicle",
+  MOVING: "Moving",
+  STOPPED: "Stopped",
+  ERRATIC: "Erratic / Distress",
 };
 const ACTIVITY_STALE_MS = 3 * 60 * 1000;
 

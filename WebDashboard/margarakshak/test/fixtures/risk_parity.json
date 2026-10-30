@@ -1,0 +1,681 @@
+{
+ "generated_by": "tools/gen_risk_parity.py (hmmlearn repo)",
+ "cases": [
+  {
+   "name": "lighting by day",
+   "zones": [
+    {
+     "key": "a",
+     "hazard": "poor_lighting",
+     "severity": "medium",
+     "geometry": {
+      "type": "Point",
+      "coordinates": [
+       76.65,
+       12.3
+      ]
+     },
+     "confidence": 0.6,
+     "radiusM": 100,
+     "observedAt": "2026-10-23T04:30:00+00:00",
+     "expiresAt": null,
+     "status": "active",
+     "validFrom": null
+    }
+   ],
+   "lat": 12.3,
+   "lon": 76.65,
+   "t": "2026-10-24T04:30:00+00:00",
+   "score": 0.015,
+   "level": "none",
+   "dark": false,
+   "top": "poor_lighting"
+  },
+  {
+   "name": "lighting at night",
+   "zones": [
+    {
+     "key": "a",
+     "hazard": "poor_lighting",
+     "severity": "medium",
+     "geometry": {
+      "type": "Point",
+      "coordinates": [
+       76.65,
+       12.3
+      ]
+     },
+     "confidence": 0.6,
+     "radiusM": 100,
+     "observedAt": "2026-10-23T04:30:00+00:00",
+     "expiresAt": null,
+     "status": "active",
+     "validFrom": null
+    }
+   ],
+   "lat": 12.3,
+   "lon": 76.65,
+   "t": "2026-10-24T15:00:00+00:00",
+   "score": 0.3,
+   "level": "caution",
+   "dark": true,
+   "top": "poor_lighting"
+  },
+  {
+   "name": "crime by day",
+   "zones": [
+    {
+     "key": "a",
+     "hazard": "crime",
+     "severity": "high",
+     "geometry": {
+      "type": "Point",
+      "coordinates": [
+       76.65,
+       12.3
+      ]
+     },
+     "confidence": 0.9,
+     "radiusM": 100,
+     "observedAt": "2026-10-23T04:30:00+00:00",
+     "expiresAt": null,
+     "status": "active",
+     "validFrom": null
+    }
+   ],
+   "lat": 12.3,
+   "lon": 76.65,
+   "t": "2026-10-24T04:30:00+00:00",
+   "score": 0.403,
+   "level": "warning",
+   "dark": false,
+   "top": "crime"
+  },
+  {
+   "name": "crime at night",
+   "zones": [
+    {
+     "key": "a",
+     "hazard": "crime",
+     "severity": "high",
+     "geometry": {
+      "type": "Point",
+      "coordinates": [
+       76.65,
+       12.3
+      ]
+     },
+     "confidence": 0.9,
+     "radiusM": 100,
+     "observedAt": "2026-10-23T04:30:00+00:00",
+     "expiresAt": null,
+     "status": "active",
+     "validFrom": null
+    }
+   ],
+   "lat": 12.3,
+   "lon": 76.65,
+   "t": "2026-10-24T15:00:00+00:00",
+   "score": 0.671,
+   "level": "danger",
+   "dark": true,
+   "top": "crime"
+  },
+  {
+   "name": "connectivity capped",
+   "zones": [
+    {
+     "key": "a",
+     "hazard": "weak_connectivity",
+     "severity": "critical",
+     "geometry": {
+      "type": "Point",
+      "coordinates": [
+       76.65,
+       12.3
+      ]
+     },
+     "confidence": 1.0,
+     "radiusM": 100,
+     "observedAt": "2026-10-23T04:30:00+00:00",
+     "expiresAt": null,
+     "status": "active",
+     "validFrom": null
+    }
+   ],
+   "lat": 12.3,
+   "lon": 76.65,
+   "t": "2026-10-24T15:00:00+00:00",
+   "score": 0.35,
+   "level": "caution",
+   "dark": true,
+   "top": "weak_connectivity"
+  },
+  {
+   "name": "flood critical",
+   "zones": [
+    {
+     "key": "a",
+     "hazard": "flood",
+     "severity": "critical",
+     "geometry": {
+      "type": "Point",
+      "coordinates": [
+       76.65,
+       12.3
+      ]
+     },
+     "confidence": 0.9,
+     "radiusM": 500,
+     "observedAt": "2026-10-23T04:30:00+00:00",
+     "expiresAt": "2026-10-25T15:00:00+00:00",
+     "status": "active",
+     "validFrom": null
+    }
+   ],
+   "lat": 12.3,
+   "lon": 76.65,
+   "t": "2026-10-24T04:30:00+00:00",
+   "score": 0.9,
+   "level": "danger",
+   "dark": false,
+   "top": "flood"
+  },
+  {
+   "name": "expired before arrival",
+   "zones": [
+    {
+     "key": "a",
+     "hazard": "flood",
+     "severity": "critical",
+     "geometry": {
+      "type": "Point",
+      "coordinates": [
+       76.65,
+       12.3
+      ]
+     },
+     "confidence": 1.0,
+     "radiusM": 500,
+     "observedAt": "2026-10-23T04:30:00+00:00",
+     "expiresAt": "2026-10-24T12:30:00+00:00",
+     "status": "active",
+     "validFrom": null
+    }
+   ],
+   "lat": 12.3,
+   "lon": 76.65,
+   "t": "2026-10-24T15:00:00+00:00",
+   "score": 0.0,
+   "level": "none",
+   "dark": true,
+   "top": null
+  },
+  {
+   "name": "not yet valid",
+   "zones": [
+    {
+     "key": "a",
+     "hazard": "cyclone",
+     "severity": "critical",
+     "geometry": {
+      "type": "Point",
+      "coordinates": [
+       76.65,
+       12.3
+      ]
+     },
+     "confidence": 0.7,
+     "radiusM": 500,
+     "observedAt": "2026-10-23T04:30:00+00:00",
+     "expiresAt": "2026-10-25T15:00:00+00:00",
+     "status": "active",
+     "validFrom": "2026-10-24T18:00:00+00:00"
+    }
+   ],
+   "lat": 12.3,
+   "lon": 76.65,
+   "t": "2026-10-24T15:00:00+00:00",
+   "score": 0.0,
+   "level": "none",
+   "dark": true,
+   "top": null
+  },
+  {
+   "name": "crime 180 days old",
+   "zones": [
+    {
+     "key": "a",
+     "hazard": "crime",
+     "severity": "high",
+     "geometry": {
+      "type": "Point",
+      "coordinates": [
+       76.65,
+       12.3
+      ]
+     },
+     "confidence": 0.9,
+     "radiusM": 100,
+     "observedAt": "2026-04-27T15:00:00+00:00",
+     "expiresAt": null,
+     "status": "active",
+     "validFrom": null
+    }
+   ],
+   "lat": 12.3,
+   "lon": 76.65,
+   "t": "2026-10-24T15:00:00+00:00",
+   "score": 0.338,
+   "level": "caution",
+   "dark": true,
+   "top": "crime"
+  },
+  {
+   "name": "crime stale",
+   "zones": [
+    {
+     "key": "a",
+     "hazard": "crime",
+     "severity": "high",
+     "geometry": {
+      "type": "Point",
+      "coordinates": [
+       76.65,
+       12.3
+      ]
+     },
+     "confidence": 0.9,
+     "radiusM": 100,
+     "observedAt": "2018-08-07T15:00:00+00:00",
+     "expiresAt": null,
+     "status": "active",
+     "validFrom": null
+    }
+   ],
+   "lat": 12.3,
+   "lon": 76.65,
+   "t": "2026-10-24T15:00:00+00:00",
+   "score": 0.0,
+   "level": "none",
+   "dark": true,
+   "top": null
+  },
+  {
+   "name": "crime unknown age",
+   "zones": [
+    {
+     "key": "a",
+     "hazard": "crime",
+     "severity": "high",
+     "geometry": {
+      "type": "Point",
+      "coordinates": [
+       76.65,
+       12.3
+      ]
+     },
+     "confidence": 0.9,
+     "radiusM": 100,
+     "observedAt": null,
+     "expiresAt": null,
+     "status": "active",
+     "validFrom": null
+    }
+   ],
+   "lat": 12.3,
+   "lon": 76.65,
+   "t": "2026-10-24T15:00:00+00:00",
+   "score": 0.338,
+   "level": "caution",
+   "dark": true,
+   "top": "crime"
+  },
+  {
+   "name": "resolved zone ignored",
+   "zones": [
+    {
+     "key": "a",
+     "hazard": "flood",
+     "severity": "critical",
+     "geometry": {
+      "type": "Point",
+      "coordinates": [
+       76.65,
+       12.3
+      ]
+     },
+     "confidence": 1.0,
+     "radiusM": 500,
+     "observedAt": "2026-10-23T04:30:00+00:00",
+     "expiresAt": null,
+     "status": "resolved",
+     "validFrom": null
+    }
+   ],
+   "lat": 12.3,
+   "lon": 76.65,
+   "t": "2026-10-24T04:30:00+00:00",
+   "score": 0.0,
+   "level": "none",
+   "dark": false,
+   "top": null
+  },
+  {
+   "name": "two groups corroborate",
+   "zones": [
+    {
+     "key": "f",
+     "hazard": "flood",
+     "severity": "medium",
+     "geometry": {
+      "type": "Point",
+      "coordinates": [
+       76.65,
+       12.3
+      ]
+     },
+     "confidence": 1.0,
+     "radiusM": 500,
+     "observedAt": "2026-10-23T04:30:00+00:00",
+     "expiresAt": "2026-10-25T15:00:00+00:00",
+     "status": "active",
+     "validFrom": null
+    },
+    {
+     "key": "c",
+     "hazard": "crime",
+     "severity": "high",
+     "geometry": {
+      "type": "Point",
+      "coordinates": [
+       76.65,
+       12.3
+      ]
+     },
+     "confidence": 0.9,
+     "radiusM": 500,
+     "observedAt": "2026-10-23T04:30:00+00:00",
+     "expiresAt": null,
+     "status": "active",
+     "validFrom": null
+    }
+   ],
+   "lat": 12.3,
+   "lon": 76.65,
+   "t": "2026-10-24T15:00:00+00:00",
+   "score": 0.771,
+   "level": "danger",
+   "dark": true,
+   "top": "crime"
+  },
+  {
+   "name": "polygon deep inside",
+   "zones": [
+    {
+     "key": "p",
+     "hazard": "flood",
+     "severity": "high",
+     "geometry": {
+      "type": "Polygon",
+      "coordinates": [
+       [
+        [
+         76.64,
+         12.290000000000001
+        ],
+        [
+         76.66000000000001,
+         12.290000000000001
+        ],
+        [
+         76.66000000000001,
+         12.31
+        ],
+        [
+         76.64,
+         12.31
+        ],
+        [
+         76.64,
+         12.290000000000001
+        ]
+       ]
+      ]
+     },
+     "confidence": 0.8,
+     "radiusM": null,
+     "observedAt": "2026-10-23T04:30:00+00:00",
+     "expiresAt": "2026-10-25T15:00:00+00:00",
+     "status": "active",
+     "validFrom": null
+    }
+   ],
+   "lat": 12.3,
+   "lon": 76.65,
+   "t": "2026-10-24T15:00:00+00:00",
+   "score": 0.6,
+   "level": "warning",
+   "dark": true,
+   "top": "flood"
+  },
+  {
+   "name": "polygon far outside",
+   "zones": [
+    {
+     "key": "p",
+     "hazard": "flood",
+     "severity": "high",
+     "geometry": {
+      "type": "Polygon",
+      "coordinates": [
+       [
+        [
+         76.64,
+         12.290000000000001
+        ],
+        [
+         76.66000000000001,
+         12.290000000000001
+        ],
+        [
+         76.66000000000001,
+         12.31
+        ],
+        [
+         76.64,
+         12.31
+        ],
+        [
+         76.64,
+         12.290000000000001
+        ]
+       ]
+      ]
+     },
+     "confidence": 0.8,
+     "radiusM": null,
+     "observedAt": "2026-10-23T04:30:00+00:00",
+     "expiresAt": "2026-10-25T15:00:00+00:00",
+     "status": "active",
+     "validFrom": null
+    }
+   ],
+   "lat": 13.3,
+   "lon": 76.65,
+   "t": "2026-10-24T15:00:00+00:00",
+   "score": 0.0,
+   "level": "none",
+   "dark": true,
+   "top": null
+  },
+  {
+   "name": "line inside default buffer",
+   "zones": [
+    {
+     "key": "l",
+     "hazard": "road_condition",
+     "severity": "high",
+     "geometry": {
+      "type": "LineString",
+      "coordinates": [
+       [
+        76.64,
+        12.3
+       ],
+       [
+        76.66000000000001,
+        12.3
+       ]
+      ]
+     },
+     "confidence": 0.7,
+     "radiusM": null,
+     "observedAt": "2026-10-23T04:30:00+00:00",
+     "expiresAt": null,
+     "status": "active",
+     "validFrom": null
+    }
+   ],
+   "lat": 12.30009,
+   "lon": 76.65,
+   "t": "2026-10-24T15:00:00+00:00",
+   "score": 0.418,
+   "level": "warning",
+   "dark": true,
+   "top": "road_condition"
+  },
+  {
+   "name": "point buffer deepens polygon",
+   "zones": [
+    {
+     "key": "p",
+     "hazard": "flood",
+     "severity": "high",
+     "geometry": {
+      "type": "Polygon",
+      "coordinates": [
+       [
+        [
+         76.64,
+         12.290000000000001
+        ],
+        [
+         76.66000000000001,
+         12.290000000000001
+        ],
+        [
+         76.66000000000001,
+         12.31
+        ],
+        [
+         76.64,
+         12.31
+        ],
+        [
+         76.64,
+         12.290000000000001
+        ]
+       ]
+      ]
+     },
+     "confidence": 0.8,
+     "radiusM": 300,
+     "observedAt": "2026-10-23T04:30:00+00:00",
+     "expiresAt": "2026-10-25T15:00:00+00:00",
+     "status": "active",
+     "validFrom": null
+    }
+   ],
+   "lat": 12.3,
+   "lon": 76.66092045433628,
+   "t": "2026-10-24T15:00:00+00:00",
+   "score": 0.6,
+   "level": "warning",
+   "dark": true,
+   "top": "flood"
+  },
+  {
+   "name": "restricted area no decay",
+   "zones": [
+    {
+     "key": "r",
+     "hazard": "restricted_area",
+     "severity": "medium",
+     "geometry": {
+      "type": "Point",
+      "coordinates": [
+       76.65,
+       12.3
+      ]
+     },
+     "confidence": 0.9,
+     "radiusM": 200,
+     "observedAt": "2015-11-11T15:00:00+00:00",
+     "expiresAt": null,
+     "status": "active",
+     "validFrom": null
+    }
+   ],
+   "lat": 12.3,
+   "lon": 76.65,
+   "t": "2026-10-24T04:30:00+00:00",
+   "score": 0.36,
+   "level": "caution",
+   "dark": false,
+   "top": "restricted_area"
+  }
+ ],
+ "sun": [
+  {
+   "name": "Mysuru",
+   "lat": 12.2958,
+   "lon": 76.6394,
+   "y": 2026,
+   "m": 10,
+   "d": 24,
+   "rise": "2026-10-24T00:44:31.482992+00:00",
+   "set": "2026-10-24T12:30:48.206820+00:00"
+  },
+  {
+   "name": "Delhi",
+   "lat": 28.6139,
+   "lon": 77.209,
+   "y": 2027,
+   "m": 1,
+   "d": 15,
+   "rise": "2027-01-15T01:45:10.701870+00:00",
+   "set": "2027-01-15T12:16:06.305367+00:00"
+  },
+  {
+   "name": "Kolkata",
+   "lat": 22.5726,
+   "lon": 88.3639,
+   "y": 2026,
+   "m": 6,
+   "d": 21,
+   "rise": "2026-06-21T23:22:34.373644+00:00",
+   "set": "2026-06-21T12:53:45.728708+00:00"
+  },
+  {
+   "name": "Chennai",
+   "lat": 13.0827,
+   "lon": 80.2707,
+   "y": 2026,
+   "m": 12,
+   "d": 21,
+   "rise": "2026-12-21T00:56:03.129336+00:00",
+   "set": "2026-12-21T12:17:31.846168+00:00"
+  },
+  {
+   "name": "Leh",
+   "lat": 34.1526,
+   "lon": 77.5771,
+   "y": 2026,
+   "m": 12,
+   "d": 21,
+   "rise": "2026-12-21T01:51:16.788711+00:00",
+   "set": "2026-12-21T11:43:51.080616+00:00"
+  }
+ ]
+}

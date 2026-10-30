@@ -199,7 +199,39 @@ export default function CreateTravelCard({ user, onDone, onBack }) {
             state: x.info.place.state, district: x.info.place.district, risk: summarizeRisk(x.info.risk) }
         : { name: x.text.trim(), verified: false });
 
-      const { error } = await supabase.from('travel_cards').insert({
+      // Compute planned driving route polyline from waypoints
+      let plannedRoute = null;
+      const validWaypoints = placeDetails.filter(p => p.lat != null && p.lon != null);
+      if (validWaypoints.length >= 2) {
+        try {
+          const coords = validWaypoints.map(p => `${p.lon.toFixed(6)},${p.lat.toFixed(6)}`).join(';');
+          const osrmRes = await fetch(`https://router.project-osrm.org/route/v1/driving/${coords}?overview=full&geometries=geojson`);
+          if (osrmRes.ok) {
+            const osrmData = await osrmRes.json();
+            if (osrmData.code === 'Ok' && osrmData.routes?.length) {
+              const r0 = osrmData.routes[0];
+              const coordsList = r0.geometry?.coordinates || [];
+              plannedRoute = {
+                polyline: coordsList.map(c => [c[1], c[0]]), // [lat, lon]
+                distance_km: Math.round(r0.distance / 100) / 10,
+                duration_hours: Math.round((r0.duration / 3600) * 10) / 10,
+                source: 'osrm',
+              };
+            }
+          }
+        } catch {
+          plannedRoute = {
+            polyline: validWaypoints.map(p => [p.lat, p.lon]),
+            source: 'fallback_direct',
+          };
+        }
+      }
+
+      if (plannedRoute) {
+        placeDetails.push({ _type: 'planned_route', ...plannedRoute });
+      }
+
+      const cardPayload = {
         user_id: user.id, full_name: fullName, mobile,
         document_type: docType, document_url: documentUrl,
         id_number: idNumber.trim() || null,
@@ -210,10 +242,18 @@ export default function CreateTravelCard({ user, onDone, onBack }) {
         start_date: toDbDate(startDate), end_date: toDbDate(endDate),
         places,
         place_details: placeDetails,
+        planned_route: plannedRoute,
         companions: companions.filter(c => c.name.trim()),
         emergency_contacts: validEmergency,
         disclaimer_accepted: true, status: 'upcoming',
-      });
+      };
+
+      let { error } = await supabase.from('travel_cards').insert(cardPayload);
+      if (error && error.message && error.message.includes('planned_route')) {
+        delete cardPayload.planned_route;
+        const retryRes = await supabase.from('travel_cards').insert(cardPayload);
+        error = retryRes.error;
+      }
       if (error) Alert.alert('Error', error.message);
       else Alert.alert(
         'Travel card created',

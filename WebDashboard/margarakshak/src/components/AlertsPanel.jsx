@@ -2,6 +2,7 @@ import { useAuth } from "../context/AuthContext";
 
 const TYPE_LABEL = {
   panic: "Panic button",
+  geofence_approach: "Approaching risk zone",
   geofence_entry: "Entered risk zone",
   geofence_exit: "Exited risk zone",
   dropout: "Signal dropout",

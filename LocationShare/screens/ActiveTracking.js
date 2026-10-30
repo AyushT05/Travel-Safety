@@ -9,6 +9,7 @@ import { Ionicons, Feather } from '@expo/vector-icons';
 import { supabase } from '../lib/supabase';
 import PanicButton from '../components/PanicButton';
 import SafetyBanner from '../components/SafetyBanner';
+import GeofenceBanner from '../components/GeofenceBanner';
 import NearbyServices from '../components/NearbyServices';
 import { recordFix } from '../lib/locationRecorder';
 import { subscribe } from '../lib/sync';
@@ -230,6 +231,7 @@ export default function ActiveTracking({ user, card, onStop, trackingState, onTr
       </View>
 
       <View style={{ paddingHorizontal: 20, marginBottom: 4 }}>
+        <GeofenceBanner userId={user.id} isSharing={isSharing} />
         <SafetyBanner
           lat={locationData?.lat}
           lon={locationData?.lon}

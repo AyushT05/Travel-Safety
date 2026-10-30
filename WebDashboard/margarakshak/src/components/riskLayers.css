@@ -1,0 +1,25 @@
+.rl-panel { position: absolute; left: 12px; top: 176px; z-index: 900; width: 240px; background: #fff; border: 1px solid #e5e7eb;
+  border-radius: 12px; box-shadow: 0 4px 14px rgba(0,0,0,.12); font-size: 13px; color: #1f2937; }
+.rl-head { width: 100%; display: flex; justify-content: space-between; padding: 10px 12px; border: 0; background: transparent;
+  font-weight: 700; font-size: 13px; cursor: pointer; }
+.rl-body { padding: 0 12px 12px; display: flex; flex-direction: column; gap: 6px; max-height: calc(100vh - 300px); overflow-y: auto; }
+.rl-row { display: flex; align-items: center; gap: 8px; cursor: pointer; }
+.rl-sub { margin-left: 22px; }
+.rl-chips { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.rl-chip { border: 1px solid #d1d5db; background: #f9fafb; border-radius: 999px; padding: 2px 10px; font-size: 12px; cursor: pointer; }
+.rl-chip.on { background: #1b4332; border-color: #1b4332; color: #fff; }
+.rl-time { margin-top: 4px; padding-top: 8px; border-top: 1px solid #f1f5f9; }
+.rl-label { font-weight: 600; margin-bottom: 4px; }
+.rl-time input, .rl-sub select { font-size: 12px; max-width: 100%; }
+.rl-legend { margin-top: 4px; }
+.rl-bar { height: 8px; border-radius: 4px; background: linear-gradient(90deg, #fde047, #fb923c, #ef4444, #991b1b); }
+.rl-scale { display: flex; justify-content: space-between; font-size: 11px; color: #6b7280; }
+.rl-stats { font-size: 12px; font-weight: 600; }
+.rl-note { font-size: 11px; color: #6b7280; line-height: 1.35; }
+.rl-error { color: #b91c1c; font-weight: 500; margin-top: 2px; }
+.rz-popup { font-size: 12px; line-height: 1.5; min-width: 200px; }
+.rz-popup span { display: inline-block; min-width: 92px; color: #6b7280; }
+.tc-wrap { background: transparent; border: 0; }
+.tc-bubble { border-radius: 50%; text-align: center; color: #fff; font-weight: 700; font-size: 13px; border: 3px solid #fff;
+  box-shadow: 0 2px 8px rgba(0,0,0,.35); cursor: pointer; }
+.tc-none { background: #15803d; } .tc-caution { background: #d97706; } .tc-warning { background: #ea580c; } .tc-danger { background: #b91c1c; }
