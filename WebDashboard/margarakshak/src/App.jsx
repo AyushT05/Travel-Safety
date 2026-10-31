@@ -1,5 +1,5 @@
 import Header from "./components/Header";
-import Sidebar from "./components/Sidebar";
+import Sidebar, { TravelCardDetail } from "./components/Sidebar";
 import MapView from "./components/MapView";
 import DevicePanel from "./components/DevicePanel";
 import NearbyServicesPanel from "./components/NearbyServicesPanel";
@@ -26,11 +26,19 @@ import { useAuth } from "./context/AuthContext";
 
 import { supabase } from "./lib/supabase";
 
+function documentStoragePath(documentUrl) {
+  const marker = "/travel-documents/";
+  const markerIndex = documentUrl?.indexOf(marker) ?? -1;
+  return markerIndex >= 0
+    ? decodeURIComponent(documentUrl.slice(markerIndex + marker.length).split("?")[0])
+    : documentUrl;
+}
+
 export default function App() {
   const { auth, isLoaded } = useAuth();
 
   // Only devices now
-  const { devices, clearTrails } = useDevices();
+  const { devices } = useDevices();
   const { activity } = useActivityState();
   const { alerts, openCount, acknowledge, resolve } = useAlerts();
   const { assessments: safetyAssessments } = useSafetyAssessments();
@@ -42,7 +50,7 @@ export default function App() {
     riskHeat: true, zoneOutlines: true, showInactive: false, clusters: true, density: false,
     alertHeat: false, alertTypes: ["panic", "geofence_entry", "dropout"], alertHours: 24 * 7, at: null,
   });
-  const risk = useRiskZones();
+  const risk = useRiskZones(riskOptions.at);
   const alertHeat = useAlertHeat({
     enabled: riskOptions.alertHeat, hours: riskOptions.alertHours, types: riskOptions.alertTypes,
   });
@@ -67,8 +75,9 @@ export default function App() {
   const [selected, setSelected] =
     useState(null);
 
-  const [follow, setFollow] =
-    useState(false);
+  const [selectedCard, setSelectedCard] = useState(null);
+  const [isCardMinimized, setIsCardMinimized] = useState(false);
+  const [showMapLayers, setShowMapLayers] = useState(false);
 
   const [showIdPanel, setShowIdPanel] =
     useState(false);
@@ -78,12 +87,32 @@ export default function App() {
 
   const [travelCards, setTravelCards] =
     useState([]);
+  const mappedDevices = useMemo(() => {
+    const cardIds = new Set(travelCards.map((card) => card.id));
+    return Object.fromEntries(Object.entries(devices).filter(([, device]) =>
+      device.travelCardId && cardIds.has(device.travelCardId)
+    ));
+  }, [devices, travelCards]);
+  // Keep the map calm: ongoing cards are visible by default. A completed card
+  // becomes visible only while an administrator has explicitly opened it.
+  const visibleMapDevices = useMemo(() => {
+    const today = new Date().toISOString().slice(0, 10);
+    return Object.fromEntries(Object.entries(mappedDevices).filter(([id, device]) => {
+      const card = travelCards.find((candidate) => candidate.id === id || candidate.id === device.travelCardId);
+      return card && (card.end_date >= today || card.id === selectedCard?.id);
+    }));
+  }, [mappedDevices, travelCards, selectedCard]);
+
+  function openTravelCard(card) {
+    setSelectedCard(card);
+    setIsCardMinimized(false);
+    setSelected(card.id);
+  }
 
   // Map actions exposed from MapView
   const [mapActions, setMapActions] =
     useState({
-      fitAll: () => {},
-      clearTrails: () => {},
+        fitAll: () => {},
     });
 
   // Fetch travel cards
@@ -99,7 +128,7 @@ export default function App() {
       const table =
         auth?.role === "admin" ? "travel_cards" : "tracked_traveler_info";
 
-      const { data } = await supabase.from(table).select("*");
+      const { data } = await supabase.from(table).select("*").order("created_at", { ascending: false });
 
       setTravelCards(data || []);
     }
@@ -115,6 +144,27 @@ export default function App() {
     return () =>
       clearInterval(interval);
   }, [auth]);
+
+  async function deleteCompletedCard(card) {
+    // The UI is intentionally restrictive, and the accompanying RLS migration
+    // makes the same rule non-bypassable from a modified browser client.
+    const today = new Date().toISOString().slice(0, 10);
+    if (auth?.role !== "admin" || !card?.end_date || card.end_date >= today) {
+      return { error: "Only completed travel cards can be deleted by an administrator." };
+    }
+    // The document bucket is private and does not cascade when the database
+    // row is deleted, so remove the file first to avoid retaining government
+    // ID scans after the completed trip is removed.
+    if (card.document_url) {
+      const { error: storageError } = await supabase.storage
+        .from("travel-documents")
+        .remove([documentStoragePath(card.document_url)]);
+      if (storageError) return { error: `Could not remove the ID document: ${storageError.message}` };
+    }
+    const { error } = await supabase.from("travel_cards").delete().eq("id", card.id);
+    if (!error) setTravelCards((cards) => cards.filter((c) => c.id !== card.id));
+    return { error: error?.message ?? null };
+  }
 
   // Loading screen
   if (!isLoaded) {
@@ -134,6 +184,7 @@ export default function App() {
     <>
       <Header
         devices={devices}
+        travelCards={travelCards}
         openAlertsCount={openCount}
         onOpenAlerts={() => setShowAlertsPanel(true)}
         urgentIncidentCount={urgentCount}
@@ -151,16 +202,19 @@ export default function App() {
           }
           travelCards={travelCards}
           safetyAssessments={safetyAssessments}
+          onDeleteCompletedCard={deleteCompletedCard}
+          selectedCard={selectedCard}
+          onSelectTravelCard={openTravelCard}
         />
 
         {/* Main map area */}
         <div className="map-area">
           <MapView
-            devices={devices}
+            devices={visibleMapDevices}
             travelCards={travelCards}
             alerts={alerts}
-            follow={follow}
             selected={selected}
+            selectedCard={selectedCard}
             safetyAssessments={safetyAssessments}
             riskZones={risk.zones}
             alertHeat={alertHeat.points}
@@ -170,32 +224,41 @@ export default function App() {
             }
           />
 
-          <RiskLayerPanel options={riskOptions} setOptions={setRiskOptions} stats={riskStats} />
+          <RiskLayerPanel options={riskOptions} setOptions={setRiskOptions} stats={riskStats} open={showMapLayers} onOpenChange={setShowMapLayers} />
 
           <MapControls
-            follow={follow}
-            actions={{
-              toggleFollow: () =>
-                setFollow(
-                  (f) => !f
-                ),
-
-              fitAll:
-                mapActions.fitAll,
-
-              clearTrails,
-            }}
+            actions={{ fitAll: mapActions.fitAll }}
           />
 
           <DevicePanel
             device={devices[selected]}
             name={selected}
             travelCards={travelCards}
-            activity={pickActivity(activity, devices[selected], selected)}
+            activity={pickActivity(activity, devices[selected], devices[selected]?.userId)}
             onOpenNearby={setNearbyTarget}
             safetyAssessment={safetyAssessments[selected]}
             onOpenSafety={setSafetyTarget}
+            onToggleLayers={() => setShowMapLayers((open) => !open)}
+            mapLayersOpen={showMapLayers}
           />
+          {selectedCard && !isCardMinimized && (
+            <div className="map-travel-card-panel">
+              <TravelCardDetail
+                card={selectedCard}
+                isAdmin={auth?.role === "admin"}
+                onDeleteCompletedCard={deleteCompletedCard}
+                onMinimize={() => setIsCardMinimized(true)}
+                onClose={() => { setSelectedCard(null); setSelected(null); setIsCardMinimized(false); }}
+              />
+            </div>
+          )}
+          {selectedCard && isCardMinimized && (
+            <button className="minimized-travel-card" onClick={() => setIsCardMinimized(false)}>
+              <span>Travel card</span>
+              <strong>{selectedCard.full_name || "Traveller"}</strong>
+              <span>Expand</span>
+            </button>
+          )}
         </div>
       </div>
 
@@ -226,7 +289,13 @@ export default function App() {
           incidents={incidents}
           travelCards={travelCards}
           onAct={actOnIncident}
-          onFocus={(userId) => { setSelected(userId); setShowIncidents(false); }}
+          onFocus={(id) => {
+            // id is a travel_card_id (preferred) or a user_id for legacy rows;
+            // devices are keyed per trip, so resolve it to a device key.
+            const key = devices[id] ? id : Object.keys(devices).find((k) => devices[k].userId === id);
+            setSelected(key || null);
+            setShowIncidents(false);
+          }}
           onClose={() => setShowIncidents(false)}
         />
       )}

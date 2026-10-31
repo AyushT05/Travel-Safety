@@ -38,7 +38,7 @@ const parseDate = (v) => {
 };
 
 // ------------------------------------------------------------------ rows -> zones
-export function zoneFromRiskRow(r, now = new Date()) {
+export function zoneFromRiskRow(r, now = new Date(), historical = false) {
   if (!r || !PROFILES[r.hazard_type] || !r.geometry) return null;
   // The scoring service ignores GDACS zones its hourly sync has not refreshed; do the same so the map
   // never shows a disaster the alerts no longer know about.
@@ -47,7 +47,11 @@ export function zoneFromRiskRow(r, now = new Date()) {
     key: `risk:${r.id}`, name: r.name || 'Risk zone', hazard: r.hazard_type, severity: r.severity || 'medium',
     geometry: r.geometry, confidence: r.confidence != null ? Number(r.confidence) : 0.5,
     source: r.source || 'unknown', sourceUrl: r.source_url || null, radiusM: r.radius_m ?? null,
-    observedAt: parseDate(r.observed_at), expiresAt: parseDate(r.expires_at), status: r.status || 'active',
+    // The GDACS sync retires a finished event by changing its *current*
+    // status to expired. During a historical lookup it was still active until
+    // expires_at, so let freshness() evaluate that temporal boundary instead.
+    observedAt: parseDate(r.observed_at), expiresAt: parseDate(r.expires_at),
+    status: historical && r.status === 'expired' ? 'active' : (r.status || 'active'),
     validFrom: parseDate((r.attributes || {}).valid_from), attributes: r.attributes || {},
   };
 }

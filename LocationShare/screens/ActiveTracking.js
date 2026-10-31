@@ -13,7 +13,7 @@ import GeofenceBanner from '../components/GeofenceBanner';
 import NearbyServices from '../components/NearbyServices';
 import { recordFix } from '../lib/locationRecorder';
 import { subscribe } from '../lib/sync';
-import { pendingCounts } from '../lib/localDb';
+import { pendingCounts, getLastFix, getTrackingContext } from '../lib/localDb';
 import { ensureSmsPermission } from '../lib/smsFallback';
 import { startBackgroundTracking, stopBackgroundTracking, askBackgroundDisclosure, isBackgroundTrackingActive } from '../lib/backgroundTracking';
 import { classifyFreshness } from '../lib/locationQuality';
@@ -28,6 +28,7 @@ export default function ActiveTracking({ user, card, onStop, trackingState, onTr
   const [background, setBackground] = useState(trackingState?.background || false);   // true: the foreground service is recording
   const [bgNote, setBgNote]         = useState(trackingState?.bgNote || null);    // why background tracking is off, if it is
   const [now, setNow]               = useState(Date.now());
+  const [restored, setRestored]     = useState(false);
   const backgroundRef = useRef(trackingState?.background || false);                   // read inside the watcher callback
 
   const subscriptionRef = useRef(null);
@@ -84,11 +85,20 @@ export default function ActiveTracking({ user, card, onStop, trackingState, onTr
     let mounted = true;
 
     async function restore() {
-      const on = await isBackgroundTrackingActive();
+      const [on, context, lastFix] = await Promise.all([
+        isBackgroundTrackingActive(), getTrackingContext(), getLastFix(),
+      ]);
       if (!mounted) return;
-      if (on) {
+      // The SQLite context is written before the OS service starts. It is the
+      // durable source of truth when this screen is reopened or the app was
+      // restarted, whereas React navigation state only survives one mount.
+      const ownsActiveContext = context?.userId === user.id && context?.travelCardId === card.id;
+      if (on && ownsActiveContext) {
         backgroundRef.current = true;
         setBackground(true);
+        setIsSharing(true);
+        setPermissionAsked(true);
+        if (lastFix) setLocationData(lastFix);
       }
 
       // If we were sharing when we navigated away, restart the foreground watcher
@@ -105,10 +115,13 @@ export default function ActiveTracking({ user, card, onStop, trackingState, onTr
             };
             setLocationData(data);
             setUpdateCount(c => c + 1);
-            if (!backgroundRef.current) {
-              try { await recordFix(pos, { userId: user.id, travelCardId: card.id }); }
-              catch (e) { console.warn('could not store fix locally:', e?.message ?? e); }
-            }
+            // A foreground watcher is the most immediate source of truth
+            // while this screen is open. Record it even if the background
+            // service was enabled: Android may not dispatch that service's
+            // task until the app is backgrounded, and skipping here leaves a
+            // visibly "live" phone with no dashboard location.
+            try { await recordFix(pos, { userId: user.id, travelCardId: card.id }); }
+            catch (e) { console.warn('could not store fix locally:', e?.message ?? e); }
           }
         );
         if (mounted) {
@@ -120,12 +133,12 @@ export default function ActiveTracking({ user, card, onStop, trackingState, onTr
       }
     }
 
-    restore();
+    restore().finally(() => { if (mounted) setRestored(true); });
     return () => { mounted = false; };
   }, []);
 
   useEffect(() => {
-    if (isToday && !permissionAsked) {
+    if (restored && isToday && !permissionAsked && !isSharing) {
       setPermissionAsked(true);
       Alert.alert(
         'Location Access Required',
@@ -136,7 +149,7 @@ export default function ActiveTracking({ user, card, onStop, trackingState, onTr
         ]
       );
     }
-  }, []);
+  }, [restored, isToday, permissionAsked, isSharing]);
 
   function startPulse() {
     Animated.loop(Animated.sequence([
@@ -176,6 +189,21 @@ export default function ActiveTracking({ user, card, onStop, trackingState, onTr
     startPulse();
     await supabase.from('travel_cards').update({ status: 'active' }).eq('id', card.id);
 
+    // Do not wait for the first watch callback (which can be delayed by the
+    // device). This gives a newly started trip an immediate, card-linked map
+    // position even when background tracking is also enabled.
+    try {
+      const firstFix = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High });
+      setLocationData({
+        name: user.id, lat: firstFix.coords.latitude, lon: firstFix.coords.longitude,
+        accuracy: firstFix.coords.accuracy, observedAt: firstFix.timestamp || Date.now(),
+      });
+      setUpdateCount(1);
+      await recordFix(firstFix, { userId: user.id, travelCardId: card.id });
+    } catch (e) {
+      console.warn('could not get initial location fix:', e?.message ?? e);
+    }
+
     subscriptionRef.current = await Location.watchPositionAsync(
       { accuracy: Location.Accuracy.High, timeInterval: 5000, distanceInterval: 0 },
       async (pos) => {
@@ -191,12 +219,11 @@ export default function ActiveTracking({ user, card, onStop, trackingState, onTr
         // Durable first: the fix is saved to the phone's SQLite outbox, then uploaded by the
         // SyncManager (batched, retried with backoff, idempotent via event_id). A network
         // failure can no longer lose a fix. recorded_at on the server is the device time.
-        // While the background service is running it is the single recorder; recording here too
-        // would store every fix twice.
-        if (!backgroundRef.current) {
-          try { await recordFix(pos, { userId: user.id, travelCardId: card.id }); }
-          catch (e) { console.warn('could not store fix locally:', e?.message ?? e); }
-        }
+        // Keep foreground sharing durable even when background mode is on.
+        // The OS only invokes the background task after the app is backgrounded;
+        // this watcher covers the open-screen period immediately.
+        try { await recordFix(pos, { userId: user.id, travelCardId: card.id }); }
+        catch (e) { console.warn('could not store fix locally:', e?.message ?? e); }
       }
     );
   }

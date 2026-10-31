@@ -12,6 +12,7 @@ import {
   UIManager,
 } from 'react-native';
 import { Ionicons, Feather } from '@expo/vector-icons';
+import NetInfo from '@react-native-community/netinfo';
 import { supabase } from '../lib/supabase';
 import {
   requestSafetyAssessment,
@@ -88,13 +89,19 @@ export default function SafetyBanner({ lat, lon, user, travelCardId, isSharing }
 
     setIsAssessing(true);
     try {
+      const networkState = await NetInfo.fetch().catch(() => null);
       const result = await requestSafetyAssessment(
         evalLat,
         evalLon,
         user.id,
         travelCardId,
         0,
-        prevLocationsRef.current
+        prevLocationsRef.current,
+        networkState ? {
+          is_connected: networkState.isConnected,
+          is_internet_reachable: networkState.isInternetReachable,
+          type: networkState.type,
+        } : undefined
       );
       if (result && !result.error) {
         setAssessment(result);

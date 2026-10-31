@@ -8,14 +8,19 @@ function toLocalInput(d) {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
-export default function RiskLayerPanel({ options, setOptions, stats }) {
-  const [open, setOpen] = useState(true);
+export default function RiskLayerPanel({ options, setOptions, stats, open: controlledOpen, onOpenChange }) {
+  const [localOpen, setLocalOpen] = useState(false);
+  const open = controlledOpen ?? localOpen;
+  const toggleOpen = () => {
+    const next = !open;
+    if (onOpenChange) onOpenChange(next); else setLocalOpen(next);
+  };
   const set = (patch) => setOptions((o) => ({ ...o, ...patch }));
   const toggle = (key) => () => set({ [key]: !options[key] });
 
   return (
-    <div className="rl-panel">
-      <button className="rl-head" onClick={() => setOpen(!open)} aria-expanded={open}>
+    <div className={`rl-panel ${open ? "open" : "collapsed"}`}>
+      <button className="rl-head" onClick={toggleOpen} aria-expanded={open}>
         <span>Map layers</span><span>{open ? "−" : "+"}</span>
       </button>
       {open && (
@@ -60,11 +65,11 @@ export default function RiskLayerPanel({ options, setOptions, stats }) {
             <div className="rl-scale"><span>low</span><span>high</span></div>
           </div>
           <div className="rl-stats">
-            {stats.loading ? "Loading zones..." : `${stats.activeZones} zones risky now, ${stats.inactiveZones} not at this time`}
+            {stats.loading ? "Loading zones..." : `${stats.activeZones} zones risky at this time, ${stats.inactiveZones} not at this time`}
             {stats.error && <div className="rl-error">Could not refresh zones: {stats.error}</div>}
           </div>
           <div className="rl-note">
-            Shows hazards recorded in the system, not predictions. An area with no colour has no recorded hazard, which does not mean it is safe.
+            Shows hazards recorded in the system, not predictions. Choose a date above to inspect recorded historical disasters. An area with no colour has no recorded hazard, which does not mean it is safe.
           </div>
         </div>
       )}

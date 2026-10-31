@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { supabase } from "../lib/supabase";
 
 const FRESHNESS_REFRESH_MS = 5000;
+const LATEST_LOCATION_REFRESH_MS = 10000;
 const TRAIL_HISTORY_HOURS = 6;      // how far back to rebuild trails on load
 const TRAIL_HISTORY_ROWS = 2000;    // newest rows fetched per device (about 2.8 h at 5 s)
 const TRAIL_MAX_POINTS = 3000;      // per device, oldest dropped first
@@ -32,6 +33,14 @@ function extendTrail(trail, latlng, accuracy) {
   return next;
 }
 
+// One dashboard entry per TRIP, not per user. A user who finishes a trip and
+// creates a new travel card gets a brand-new entry; the finished card keeps its
+// own entry (and trail) until it is purged. Pings recorded before
+// locations.travel_card_id existed have no card, so they fall back to user_id.
+export function deviceKey(row) {
+  return row.travel_card_id || row.user_id;
+}
+
 function toDevice(row, previous = null) {
   const timestamp = new Date(row.recorded_at).getTime();
   const latlng = [row.lat, row.lon];
@@ -44,6 +53,7 @@ function toDevice(row, previous = null) {
   const baseTrail = sameTrip ? previous.trail || [] : [];
 
   return {
+    userId: row.user_id,
     lastLatlng: latlng,
     accuracy: row.accuracy,
     speed: row.speed,
@@ -70,10 +80,21 @@ export default function useDevices() {
 
     function applyRow(row) {
       if (!row?.user_id || !row?.recorded_at) return;
-      const prev = devicesRef.current[row.user_id];
+      const key = deviceKey(row);
+      const prev = devicesRef.current[key];
       // Ignore a late/out-of-order row so it cannot move the marker backwards.
       if (prev && new Date(row.recorded_at).getTime() / 1000 < prev.timestamp) return;
-      publish({ ...devicesRef.current, [row.user_id]: toDevice(row, prev) });
+      publish({ ...devicesRef.current, [key]: toDevice(row, prev) });
+    }
+
+    async function fetchLatestRows() {
+      const COLS = "user_id, lat, lon, accuracy, speed, recorded_at, travel_card_id";
+      let { data, error } = await supabase.from("latest_locations_by_card").select(COLS);
+      if (error) {
+        console.warn("latest_locations_by_card unavailable, falling back to latest_locations:", error.message);
+        ({ data, error } = await supabase.from("latest_locations").select(COLS));
+      }
+      return { data, error };
     }
 
     // Rebuild each device's trail from stored history so a trail exists the
@@ -84,19 +105,19 @@ export default function useDevices() {
     // would stop short of "now".
     async function loadHistory(initial) {
       const since = new Date(Date.now() - TRAIL_HISTORY_HOURS * 3600 * 1000).toISOString();
-      const entries = await Promise.all(Object.entries(initial).map(async ([uid, dev]) => {
+      const entries = await Promise.all(Object.entries(initial).map(async ([key, dev]) => {
         let q = supabase
           .from("locations")
           .select("travel_card_id, lat, lon, accuracy, recorded_at")
-          .eq("user_id", uid)
+          .eq("user_id", dev.userId)
           .gte("recorded_at", since);
         q = dev.travelCardId ? q.eq("travel_card_id", dev.travelCardId) : q.is("travel_card_id", null);
         const { data, error } = await q
           .order("recorded_at", { ascending: false })
           .limit(TRAIL_HISTORY_ROWS);
         if (error) {
-          console.error("Failed to load trail history for", uid, error);
-          return [uid, []];
+          console.error("Failed to load trail history for", key, error);
+          return [key, []];
         }
         let trail = [];
         for (const r of (data || []).slice().reverse()) {
@@ -104,31 +125,33 @@ export default function useDevices() {
           if ((r.travel_card_id || null) !== (dev.travelCardId || null)) continue;
           trail = extendTrail(trail, [r.lat, r.lon], r.accuracy);
         }
-        return [uid, trail];
+        return [key, trail];
       }));
       return Object.fromEntries(entries.filter(([, t]) => t.length));
     }
 
     async function bootstrap() {
-      const { data, error } = await supabase
-        .from("latest_locations")
-        .select("user_id, lat, lon, accuracy, speed, recorded_at, travel_card_id");
+      // latest_locations_by_card = newest ping per (user, trip). The old
+      // latest_locations view is one row per USER, which is what made a new
+      // card overwrite the previous one. Fall back to it only if the new view
+      // has not been created yet (migration 20261030_travel_card_lifecycle.sql).
+      const { data, error } = await fetchLatestRows();
 
       if (!cancelled && !error && data) {
         const initial = {};
-        for (const row of data) initial[row.user_id] = toDevice(row, null);
+        for (const row of data) initial[deviceKey(row)] = toDevice(row, null);
         publish(initial);
 
         const trails = await loadHistory(initial);
         if (!cancelled) {
           // Merge with anything that arrived over realtime while history loaded.
           const merged = { ...devicesRef.current };
-          for (const [uid, hist] of Object.entries(trails)) {
-            const cur = merged[uid];
+          for (const [key, hist] of Object.entries(trails)) {
+            const cur = merged[key];
             if (!cur) continue;
             let t = hist;
             for (const p of cur.trail || []) t = extendTrail(t, p, null);
-            merged[uid] = { ...cur, trail: t };
+            merged[key] = { ...cur, trail: t };
           }
           publish(merged);
         }
@@ -146,6 +169,15 @@ export default function useDevices() {
 
     bootstrap();
 
+    // Realtime is an enhancement, not the source of truth. This catches
+    // new mobile pings even when the Realtime publication/RLS setting is
+    // temporarily unavailable or a browser subscription reconnects late.
+    const latestTimer = setInterval(async () => {
+      const { data, error } = await fetchLatestRows();
+      if (cancelled || error) return;
+      for (const row of data || []) applyRow(row);
+    }, LATEST_LOCATION_REFRESH_MS);
+
     // Freshness changes even when no Realtime event arrives. Recompute ages
     // locally so a device transitions to DELAYED/STALE without new GPS data.
     const freshnessTimer = setInterval(() => {
@@ -153,9 +185,9 @@ export default function useDevices() {
       const current = devicesRef.current;
       const next = {};
       let changed = false;
-      for (const [userId, device] of Object.entries(current)) {
+      for (const [key, device] of Object.entries(current)) {
         const freshness = getFreshness(new Date(device.timestamp * 1000).toISOString());
-        next[userId] = { ...device, ...freshness };
+        next[key] = { ...device, ...freshness };
         if (freshness.freshnessStatus !== device.freshnessStatus ||
             freshness.locationAgeSeconds !== device.locationAgeSeconds) changed = true;
       }
@@ -165,6 +197,7 @@ export default function useDevices() {
     return () => {
       cancelled = true;
       clearInterval(freshnessTimer);
+      clearInterval(latestTimer);
       if (channel) supabase.removeChannel(channel);
     };
   }, []);
@@ -173,8 +206,8 @@ export default function useDevices() {
   // from where it is now.
   function clearTrails() {
     const next = {};
-    for (const [uid, d] of Object.entries(devicesRef.current)) {
-      next[uid] = { ...d, trail: d.lastLatlng ? [d.lastLatlng] : [] };
+    for (const [key, d] of Object.entries(devicesRef.current)) {
+      next[key] = { ...d, trail: d.lastLatlng ? [d.lastLatlng] : [] };
     }
     devicesRef.current = next;
     setDevices(next);

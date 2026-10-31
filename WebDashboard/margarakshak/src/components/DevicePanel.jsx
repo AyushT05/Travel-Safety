@@ -1,4 +1,4 @@
-import { findCurrentCard } from "../utils/helpers";
+import { cardForDevice } from "../utils/helpers";
 import SafetyBadge from "./SafetyBadge";
 
 const RISK_LEVELS = [
@@ -47,9 +47,11 @@ export default function DevicePanel({
   onOpenNearby,
   safetyAssessment,
   onOpenSafety,
+  onToggleLayers,
+  mapLayersOpen,
 }) {
   if (!device) return null;
-  const card = findCurrentCard(travelCards, name);
+  const card = cardForDevice(travelCards, name, device);
   const displayName = card?.full_name || name?.slice(0, 12) + "…";
   const view = activityView(activity, device);
   const risk = view.stale ? null : riskLevel(activity?.tailProbability);
@@ -108,27 +110,30 @@ export default function DevicePanel({
             <Metric label="Duration" value={view.duration} unit={view.duration === "—" ? undefined : "min"} />
           </div>
 
-          <button
-            className="nearby-trigger-btn"
-            onClick={() => onOpenNearby?.({ lat: device.lastLatlng?.[0], lon: device.lastLatlng?.[1], name: displayName })}
-          >
+          <div className="panel-actions">
+            <button className="nearby-trigger-btn" onClick={() => onOpenNearby?.({ lat: device.lastLatlng?.[0], lon: device.lastLatlng?.[1], name: displayName })}>
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/>
             </svg>
             Nearby Help
-          </button>
+            </button>
 
-          {safetyAssessment && (
             <button
               className="safety-trigger-btn"
               onClick={() => onOpenSafety?.(safetyAssessment)}
+              disabled={!safetyAssessment}
+              title={safetyAssessment ? "Open safety details" : "No safety assessment is available yet"}
             >
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
               </svg>
               Safety Details
             </button>
-          )}
+            <button className={`map-layer-trigger-btn ${mapLayersOpen ? "active" : ""}`} onClick={onToggleLayers}>
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m12 2 8 4.5-8 4.5-8-4.5L12 2Z"/><path d="m4 12 8 4.5 8-4.5"/><path d="m4 17.5 8 4.5 8-4.5"/></svg>
+              Map layers
+            </button>
+          </div>
         </div>
       </div>
     </div>

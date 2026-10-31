@@ -59,7 +59,6 @@ export default function App() {
       onTrackingStateChange={setTrackingState}
       onStop={() => {
         setActiveCard(null);
-        setTrackingState(null);
         setScreen('home');
       }}
     />

@@ -109,6 +109,17 @@ export async function deleteEvents(eventIds) {
   await db.runAsync(`DELETE FROM outbox WHERE event_id IN (${marks})`, eventIds);
 }
 
+// Queued fixes that belong to a travel card that no longer exists would fail the
+// locations foreign key forever and jam the whole upload queue, so they are
+// dropped when the card is deleted.
+export async function deleteQueuedLocationsForCard(travelCardId) {
+  const db = await getDb();
+  await db.runAsync(
+    `DELETE FROM outbox WHERE kind = 'location' AND json_extract(payload, '$.travel_card_id') = ?`,
+    [travelCardId]
+  );
+}
+
 export async function setStatus(eventId, status, fields = {}) {
   const db = await getDb();
   await db.runAsync(

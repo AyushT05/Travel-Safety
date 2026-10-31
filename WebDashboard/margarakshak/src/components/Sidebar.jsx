@@ -1,7 +1,8 @@
 import { useState } from "react";
 import DeviceCard from "./DeviceCard";
 import { useAuth } from "../context/AuthContext";
-import { findCurrentCard } from "../utils/helpers";
+import { cardForDevice } from "../utils/helpers";
+import GovtIdViewer from "./GovtIdViewer";
 
 export default function Sidebar({
   devices,
@@ -10,12 +11,14 @@ export default function Sidebar({
   onManageIds,
   travelCards = [],
   safetyAssessments = {},
+  onDeleteCompletedCard,
+  selectedCard,
+  onSelectTravelCard,
 }) {
   const { auth } = useAuth();
 
   const [search, setSearch] = useState("");
   const [copied, setCopied] = useState(false);
-  const [expandedCard, setExpandedCard] = useState(null);
 
   const isAdmin = auth?.role === "admin";
   const trackedIds = auth?.trackedIds || [];
@@ -23,8 +26,10 @@ export default function Sidebar({
   let visibleNames = Object.keys(devices);
 
   if (!isAdmin) {
+    // trackedIds are USER ids; devices are keyed per trip, so compare on the
+    // device's owner, not on the key.
     visibleNames = visibleNames.filter((n) =>
-      trackedIds.includes(n)
+      trackedIds.includes(devices[n]?.userId)
     );
   }
 
@@ -32,14 +37,39 @@ export default function Sidebar({
     const q = search.toLowerCase();
 
     visibleNames = visibleNames.filter((n) => {
-      const card = findCurrentCard(travelCards, n);
+      const card = cardForDevice(travelCards, n, devices[n]);
 
       return (
         n.toLowerCase().includes(q) ||
+        devices[n]?.userId?.toLowerCase().includes(q) ||
         card?.full_name?.toLowerCase().includes(q)
       );
     });
   }
+
+  // This is deliberately based on travel_cards rather than GPS devices: a
+  // completed trip remains browsable even when it has no current location.
+  const adminCardGroups = isAdmin
+    ? Object.entries(
+        travelCards
+          .filter((card) => {
+            const q = search.trim().toLowerCase();
+            return !q || card.user_id?.toLowerCase().includes(q) || card.full_name?.toLowerCase().includes(q);
+          })
+          .reduce((groups, card) => {
+            (groups[card.user_id] ||= []).push(card);
+            return groups;
+          }, {})
+      )
+        .map(([userId, cards]) => [userId, cards.slice().sort((a, b) => String(b.created_at || '').localeCompare(String(a.created_at || '')))])
+        .sort(([, a], [, b]) => String(b[0]?.created_at || '').localeCompare(String(a[0]?.created_at || '')))
+    : [];
+  // A GPS feed can pre-date the travel-card flow (or be a deliberately
+  // created test identity). Keep it visible to admins, but do not inflate the
+  // travel-card count or pretend it belongs to a trip.
+  const unregisteredDeviceNames = isAdmin
+    ? visibleNames.filter((key) => !travelCards.some((card) => card.user_id === devices[key]?.userId))
+    : [];
 
   function copyId() {
     navigator.clipboard.writeText(auth.id);
@@ -51,14 +81,22 @@ export default function Sidebar({
   function handleSelect(name) {
     onSelect(name);
 
-    const card = findCurrentCard(travelCards, name);
+    const card = cardForDevice(travelCards, name, devices[name]);
 
-    setExpandedCard(card || null);
+    onSelectTravelCard?.(card || null);
+  }
+
+  function handleCardSelect(card) {
+    onSelectTravelCard?.(card);
+    // A completed card may not have a retained location. In that case keep
+    // the detail visible without selecting a nonexistent map device.
+    const deviceKey = Object.keys(devices).find((key) => key === card.id);
+    onSelect(deviceKey || null);
   }
 
   // Get display name for a device
   function getDisplayName(deviceId) {
-    const card = findCurrentCard(travelCards, deviceId);
+    const card = cardForDevice(travelCards, deviceId, devices[deviceId]);
 
     return card?.full_name || null;
   }
@@ -68,12 +106,12 @@ export default function Sidebar({
       <div className="sidebar-header">
         <div className="sidebar-title-row">
           <div className="sidebar-title">
-            {isAdmin ? "All Devices" : "Tracked Devices"}
+            {isAdmin ? "Travel Cards" : "Tracked Devices"}
           </div>
 
           {isAdmin && (
             <span className="sidebar-count">
-              {visibleNames.length}
+              {travelCards.length}
             </span>
           )}
         </div>
@@ -194,7 +232,7 @@ export default function Sidebar({
       </div>
 
       <div className="device-list">
-        {visibleNames.length === 0 && (
+        {isAdmin && adminCardGroups.length === 0 && (
           <div className="empty-state">
             <div className="empty-icon-wrap">
               <svg
@@ -242,8 +280,8 @@ export default function Sidebar({
             <div className="empty-label">
               {isAdmin
                 ? search
-                  ? "No devices match your search."
-                  : "Waiting for devices..."
+                  ? "No travel cards match your search."
+                  : "No travel cards yet."
                 : "No tracked devices yet."}
             </div>
 
@@ -255,10 +293,49 @@ export default function Sidebar({
           </div>
         )}
 
-        {visibleNames.map((name) => (
+        {isAdmin && adminCardGroups.map(([userId, cards]) => (
+          <div className="travel-card-directory" key={userId}>
+            <div className="travel-card-directory-user" title={userId}>
+              <span className="travel-card-directory-folder">▾</span>
+              <span>{cards[0]?.full_name || "Traveller"}</span>
+              <code>{shortId(userId)}</code>
+              <span className="travel-card-directory-count">{cards.length}</span>
+            </div>
+            {cards.map((card) => (
+              <button
+                key={card.id}
+                className={`travel-card-directory-item ${selectedCard?.id === card.id ? "selected" : ""}`}
+                onClick={() => handleCardSelect(card)}
+              >
+                <span className="travel-card-directory-icon">▤</span>
+                <span className="travel-card-directory-dates">{formatShortDate(card.start_date)} → {formatShortDate(card.end_date)}</span>
+                <span className={`travel-card-directory-status ${cardStatus(card)}`}>{cardStatus(card)}</span>
+              </button>
+            ))}
+          </div>
+        ))}
+
+        {isAdmin && unregisteredDeviceNames.length > 0 && (
+          <div className="unregistered-feeds">
+            <div className="unregistered-feeds-title">Location feeds without a travel card</div>
+            {unregisteredDeviceNames.map((name) => (
+              <DeviceCard
+                key={name}
+                name={devices[name]?.userId || name}
+                displayName={null}
+                data={devices[name]}
+                selected={name === selected}
+                onClick={() => handleSelect(name)}
+                safetyStatus={safetyAssessments[name]?.safety_status}
+              />
+            ))}
+          </div>
+        )}
+
+        {!isAdmin && visibleNames.map((name) => (
           <DeviceCard
             key={name}
-            name={name}
+            name={devices[name]?.userId || name}
             displayName={getDisplayName(name)}
             data={devices[name]}
             selected={name === selected}
@@ -268,21 +345,11 @@ export default function Sidebar({
         ))}
       </div>
 
-      {/* Travel card detail panel */}
-      {selected && expandedCard && (
-        <TravelCardDetail
-          card={expandedCard}
-          onClose={() => {
-            setExpandedCard(null);
-            onSelect(null);
-          }}
-        />
-      )}
     </aside>
   );
 }
 
-function TravelCardDetail({ card, onClose }) {
+export function TravelCardDetail({ card, onClose, onMinimize, isAdmin, onDeleteCompletedCard }) {
   const today = new Date().toISOString().split("T")[0];
 
   const isActive =
@@ -302,6 +369,16 @@ function TravelCardDetail({ card, onClose }) {
     : isUpcoming
     ? "status-upcoming"
     : "status-done";
+
+  async function deleteCard() {
+    if (!window.confirm("Delete this completed travel card? This cannot be undone.")) return;
+    const result = await onDeleteCompletedCard?.(card);
+    if (result?.error) {
+      window.alert(result.error);
+      return;
+    }
+    onClose();
+  }
 
   return (
     <div className="travel-detail">
@@ -324,10 +401,9 @@ function TravelCardDetail({ card, onClose }) {
           Travel Card
         </div>
 
-        <button
-          className="travel-detail-close"
-          onClick={onClose}
-        >
+        <div className="travel-detail-actions">
+          <button className="travel-detail-minimize" onClick={onMinimize} title="Minimize travel card" aria-label="Minimize travel card">−</button>
+          <button className="travel-detail-close" onClick={onClose} title="Close travel card" aria-label="Close travel card">
           <svg
             width="13"
             height="13"
@@ -340,7 +416,8 @@ function TravelCardDetail({ card, onClose }) {
             <line x1="18" y1="6" x2="6" y2="18" />
             <line x1="6" y1="6" x2="18" y2="18" />
           </svg>
-        </button>
+          </button>
+        </div>
       </div>
 
       <div className="travel-detail-body">
@@ -456,8 +533,17 @@ function TravelCardDetail({ card, onClose }) {
             icon="file-text"
             label="ID Document"
           >
-            {card.document_type}
+            {isAdmin ? (
+              // Admins can open the uploaded government ID itself. Non-admins
+              // never receive document_url (tracked_traveler_info omits it).
+              <GovtIdViewer key={card.id} card={card} />
+            ) : (
+              card.document_type
+            )}
           </DetailSection>
+        )}
+        {isAdmin && statusLabel === "Completed" && (
+          <button className="td-delete-card" onClick={deleteCard}>Delete completed travel card</button>
         )}
       </div>
     </div>
@@ -548,4 +634,18 @@ function formatDate(d) {
     month: "short",
     year: "numeric",
   });
+}
+
+function shortId(id) {
+  return id?.length > 16 ? `${id.slice(0, 8)}…${id.slice(-4)}` : id;
+}
+
+function formatShortDate(date) {
+  return date ? new Date(`${date}T00:00:00`).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }) : "—";
+}
+
+function cardStatus(card) {
+  const today = new Date().toISOString().slice(0, 10);
+  if (card.start_date <= today && card.end_date >= today) return "active";
+  return card.start_date > today ? "upcoming" : "completed";
 }

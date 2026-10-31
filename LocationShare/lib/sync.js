@@ -133,10 +133,26 @@ async function flushLocations(force) {
     const rows = await dueLocations(LOCATION_BATCH);
     if (!rows.length) return;
     const ids = rows.map((r) => r.event_id);
-    const { error } = await supabase.from('locations').upsert(
+    let { error } = await supabase.from('locations').upsert(
       rows.map((r) => JSON.parse(r.payload)),
       { onConflict: 'event_id', ignoreDuplicates: true }
     );
+    // Older projects may not yet have the event_id UNIQUE constraint. Keep
+    // live tracking working while the migration is being applied; each queued
+    // fix has a newly generated UUID, so this fallback is safe for a normal
+    // first delivery (the constraint remains the durable retry safeguard).
+    if (error && (error.code === '42P10' || /unique|conflict/i.test(error.message || ''))) {
+      ({ error } = await supabase.from('locations').insert(
+        rows.map((r) => JSON.parse(r.payload))
+      ));
+    }
+    if (error && error.code === '23503') {
+      // Foreign-key violation: these fixes reference a travel card that was deleted
+      // (by the user, or by the 7-day purge). Retrying can never succeed.
+      await deleteEvents(ids);
+      emit();
+      continue;
+    }
     if (error) {
       locFailures += 1;
       locBackoffUntil = Date.now() + jitter(Math.min(120000, 2000 * 2 ** Math.min(locFailures, 6)));

@@ -54,6 +54,16 @@ export function haversineKm(a, b) {
 // Same isActive/isUpcoming logic Sidebar.jsx already uses for its status
 // badge, centralized here so MapView, DevicePanel, and Sidebar can't drift
 // out of agreement about which card is "the current one" for a user.
+// Devices are keyed by travel_card_id (one entry PER TRIP), so a device maps to
+// exactly one card: look it up by id. Only legacy pings recorded before
+// locations.travel_card_id existed fall back to "the user's current card".
+export function cardForDevice(travelCards, key, device) {
+  const id = device?.travelCardId || key;
+  const exact = travelCards.find((c) => c.id === id);
+  if (exact) return exact;
+  return findCurrentCard(travelCards, device?.userId ?? key);
+}
+
 export function findCurrentCard(travelCards, userId) {
   const today = new Date().toISOString().split("T")[0];
   const cards = travelCards.filter(c => c.user_id === userId);

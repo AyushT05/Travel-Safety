@@ -8,6 +8,19 @@ import { StatusBar } from 'expo-status-bar';
 import { Ionicons, Feather } from '@expo/vector-icons';
 import { supabase } from '../lib/supabase';
 import PanicButton from '../components/PanicButton';
+import { stopBackgroundTracking } from '../lib/backgroundTracking';
+import { getTrackingContext, deleteQueuedLocationsForCard } from '../lib/localDb';
+
+// Finished trips are removed automatically this many days after their end date
+// (server-side job: supabase/functions/purge-expired-travel-cards).
+const RETENTION_DAYS = 7;
+
+function daysUntilAutoDelete(endDate, today) {
+  const end = new Date(`${endDate}T00:00:00`);
+  const now = new Date(`${today}T00:00:00`);
+  const deleteOn = new Date(end.getTime() + (RETENTION_DAYS + 1) * 86400000);
+  return Math.max(1, Math.round((deleteOn - now) / 86400000));
+}
 
 export default function HomeScreen({ user, onCreateCard, onStartTracking }) {
   const [cards, setCards]           = useState([]);
@@ -106,14 +119,40 @@ export default function HomeScreen({ user, onCreateCard, onStartTracking }) {
   async function deleteCard(card) {
     Alert.alert(
       'Delete Travel Card',
-      `Delete "${card.full_name}'s journey"? This cannot be undone.`,
+      `Delete "${card.full_name}'s journey"? Its location history is deleted too. This cannot be undone.`,
       [
         { text: 'Cancel', style: 'cancel' },
         {
           text: 'Delete', style: 'destructive',
           onPress: async () => {
-            await supabase.from('travel_cards').delete().eq('id', card.id);
-            fetchCards();
+            try {
+              // If this card is the one being tracked in the background, stop that first so
+              // new fixes are not written against a card that is about to disappear.
+              const ctx = await getTrackingContext().catch(() => null);
+              if (ctx?.travelCardId === card.id) await stopBackgroundTracking();
+
+              // select() makes a silently-blocked delete (RLS) visible as 0 returned rows.
+              const { data, error } = await supabase
+                .from('travel_cards').delete().eq('id', card.id).select('id');
+              if (error) throw error;
+              if (!data || data.length === 0) {
+                throw new Error('The card could not be deleted (not permitted).');
+              }
+
+              // Best effort: the card is already gone; the scheduled purge also removes
+              // leftover documents, so a failure here is not shown to the user.
+              if (card.document_url) {
+                try { await supabase.storage.from('travel-documents').remove([card.document_url]); }
+                catch { /* purge job cleans up leftovers */ }
+              }
+              await deleteQueuedLocationsForCard(card.id).catch(() => {});
+              setCards(current => current.filter(c => c.id !== card.id));
+            } catch (e) {
+              console.error('Failed to delete travel card:', e);
+              Alert.alert('Could not delete', e?.message || 'Please check your connection and try again.');
+            } finally {
+              fetchCards();
+            }
           },
         },
       ]
@@ -353,6 +392,14 @@ function TravelCardItem({ card, today, onStartTracking, onEdit, onDelete, onShar
             <Feather name="calendar" size={12} color="#9E9484" />
             <Text style={s.tcDates}>{formatDate(card.start_date)} — {formatDate(card.end_date)}</Text>
           </View>
+          {!isActive && !isUpcoming && (
+            <View style={s.tcDateRow}>
+              <Feather name="clock" size={12} color="#9E9484" />
+              <Text style={s.tcDates}>
+                Auto-deletes in {daysUntilAutoDelete(card.end_date, today)} day(s)
+              </Text>
+            </View>
+          )}
         </View>
         <Feather name={expanded ? 'chevron-up' : 'chevron-down'} size={18} color="#C4BAA8" style={{ marginLeft: 8 }} />
       </TouchableOpacity>

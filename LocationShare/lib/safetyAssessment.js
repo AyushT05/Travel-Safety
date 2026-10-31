@@ -7,7 +7,7 @@ const SERVER_URL = process.env.EXPO_PUBLIC_SERVER_URL || 'http://localhost:8000'
  * Calls the server endpoint which evaluates the area and writes results to Supabase.
  * Falls back to a direct Supabase query if the server is unreachable.
  */
-export async function requestSafetyAssessment(lat, lon, userId, travelCardId, speed, prevLocations) {
+export async function requestSafetyAssessment(lat, lon, userId, travelCardId, speed, prevLocations, network) {
   try {
     const response = await fetch(`${SERVER_URL}/api/assess-safety`, {
       method: 'POST',
@@ -21,6 +21,7 @@ export async function requestSafetyAssessment(lat, lon, userId, travelCardId, sp
         travel_card_id: travelCardId,
         speed,
         prev_locations: prevLocations,
+        network,
       }),
     });
 

@@ -85,7 +85,7 @@ function IncidentCard({ inc, card, onAct, onFocus }) {
                     )}
                     {brief.last_known.lat.toFixed(5)}, {brief.last_known.lon.toFixed(5)} · {ago(brief.last_known.at)}
                     {brief.last_known.accuracy_m != null && ` · accuracy ${Math.round(brief.last_known.accuracy_m)} m`}{" "}
-                    {inc.user_id && <button className="inc-link" onClick={() => onFocus(inc.user_id)}>Show on map</button>}
+                    {inc.user_id && <button className="inc-link" onClick={() => onFocus(inc.travel_card_id || inc.user_id)}>Show on map</button>}
                   </p>
                 </>
               )}

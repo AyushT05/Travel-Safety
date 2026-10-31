@@ -54,6 +54,17 @@ describe('rows to zones', () => {
     expect(stale).toBeNull();
     expect(zoneFromRiskRow({ ...base, updated_at: '2020-01-01T00:00:00Z' }, NOW)).not.toBeNull();   // only GDACS has the dead-man rule
   });
+  test('an expired disaster is rendered at a selected time when it was live', () => {
+    const row = {
+      ...base, source: 'GDACS', status: 'expired', observed_at: '2026-10-27T00:00:00Z',
+      expires_at: '2026-10-27T12:00:00Z', updated_at: '2026-10-27T06:00:00Z',
+    };
+    const whenLive = new Date('2026-10-27T06:00:00Z');
+    const historical = zoneFromRiskRow(row, whenLive, true);
+    expect(historical.status).toBe('active');
+    expect(freshness(historical, whenLive).f).toBe(1);
+    expect(freshness(zoneFromRiskRow(row, NOW), NOW)).toEqual({ skip: 'inactive' });
+  });
   test('unknown hazard types and bad rows are dropped', () => {
     expect(zoneFromRiskRow({ ...base, hazard_type: 'nonsense' }, NOW)).toBeNull();
     expect(zoneFromRiskRow({ ...base, geometry: null }, NOW)).toBeNull();

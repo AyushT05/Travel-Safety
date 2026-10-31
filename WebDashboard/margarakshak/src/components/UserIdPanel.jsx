@@ -54,7 +54,7 @@ export default function UserIdPanel({ devices, onClose }) {
             <div className="uid-empty">No devices tracked yet. Add an ID above.</div>
           )}
           {trackedIds.map(id => {
-            const exists = !!devices[id];
+            const exists = Object.values(devices).some((d) => d.userId === id);
             return (
               <div key={id} className={`uid-item ${exists ? "found" : "missing"}`}>
                 <div className="uid-item-left">

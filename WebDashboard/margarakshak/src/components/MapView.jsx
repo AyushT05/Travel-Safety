@@ -5,7 +5,7 @@ import {
 } from "react";
 
 import L from "leaflet";
-import { colorFor, findCurrentCard } from "../utils/helpers";
+import { colorFor, cardForDevice } from "../utils/helpers";
 import { getRoadRoute } from "../utils/routeService";
 import useRiskLayers from "../hooks/useRiskLayers";
 
@@ -56,13 +56,13 @@ function makeGoogleStopPin(label) {
   });
 }
 
-function makeLiveIcon(color, initials, isUnsafe = false) {
+function makeLiveIcon(color, initials, isUnsafe = false, inactive = false) {
   return L.divIcon({
     className: "",
     html: `
-      <div class="live-marker" style="--mc:${color}">
-        <div class="live-marker-ring live-marker-ring-2"${isUnsafe ? ' style="border-color:#dc2626;"' : ""}></div>
-        <div class="live-marker-ring live-marker-ring-1"${isUnsafe ? ' style="border-color:#dc2626;"' : ""}></div>
+      <div class="live-marker${inactive ? " live-marker-inactive" : ""}" style="--mc:${color}">
+        ${inactive ? "" : `<div class="live-marker-ring live-marker-ring-2"${isUnsafe ? ' style="border-color:#dc2626;"' : ""}></div>
+        <div class="live-marker-ring live-marker-ring-1"${isUnsafe ? ' style="border-color:#dc2626;"' : ""}></div>`}
 
         <div class="live-marker-core">
           <span class="live-marker-initials">
@@ -99,6 +99,7 @@ export default function MapView({
   alerts = [],
   follow,
   selected,
+  selectedCard = null,
   setMapActions,
   safetyAssessments = {},
   riskZones = [],
@@ -118,6 +119,29 @@ export default function MapView({
   const plannedRoutesRef = useRef({});
   const waypointMarkersRef = useRef({});
   const deviationLinesRef = useRef({});
+  const selectedCardRouteRef = useRef(null);
+
+  // Planned routes are drawn only for the SELECTED travel card. The async route
+  // lookup below reads this ref so a slow response can't draw a route for a card
+  // that was deselected while it was loading.
+  const selectedRef = useRef(selected);
+
+  function clearRouteFor(id) {
+    const route = plannedRoutesRef.current[id];
+    if (route) {
+      route.casing?.remove();
+      route.core?.remove();
+      delete plannedRoutesRef.current[id];
+    }
+    if (waypointMarkersRef.current[id]) {
+      waypointMarkersRef.current[id].forEach((m) => m.remove());
+      delete waypointMarkersRef.current[id];
+    }
+    if (deviationLinesRef.current[id]) {
+      deviationLinesRef.current[id].remove();
+      delete deviationLinesRef.current[id];
+    }
+  }
 
   // Last trail array drawn per device. Trails are owned by useDevices
   // (device.trail); the map only mirrors them, and only redraws when the
@@ -212,6 +236,7 @@ export default function MapView({
   // Marker + trail updates
   useEffect(() => {
     if (!leafletMap.current) return;
+    selectedRef.current = selected;
 
     const map = leafletMap.current;
 
@@ -254,7 +279,7 @@ export default function MapView({
       ([id, d]) => {
         if (!d.lastLatlng) return;
 
-        const card = findCurrentCard(travelCards, id);
+        const card = cardForDevice(travelCards, id, d);
 
         const name =
           card?.full_name ||
@@ -263,7 +288,8 @@ export default function MapView({
         const initials =
           getInitials(name);
 
-        const color = colorFor(id);
+        const completed = Boolean(card?.end_date && card.end_date < new Date().toISOString().slice(0, 10));
+        const color = completed ? "#94a3b8" : colorFor(id);
         const isUnsafe = safetyAssessments[id]?.safety_status === "unsafe";
 
         // Create marker
@@ -274,7 +300,8 @@ export default function MapView({
               icon: makeLiveIcon(
                 color,
                 initials,
-                isUnsafe
+                isUnsafe,
+                completed
               ),
             }
           ).addTo(map);
@@ -298,7 +325,8 @@ export default function MapView({
             makeLiveIcon(
               color,
               initials,
-              isUnsafe
+              isUnsafe,
+              completed
             )
           );
 
@@ -326,9 +354,13 @@ export default function MapView({
           trailSeenRef.current[id] = d.trail;
         }
 
-        // Draw Google Maps authentic road route & pins
-        if (card) {
+        // Draw the planned road route & pins, but ONLY for the selected card;
+        // every other card's route (and deviation line) is removed from the map.
+        if (id !== selected) {
+          clearRouteFor(id);
+        } else if (card) {
           getRoadRoute(card).then((routeRes) => {
+            if (selectedRef.current !== id) return; // deselected while loading
             if (!routeRes || !routeRes.polyline || routeRes.polyline.length < 2) return;
             const pts = routeRes.polyline;
             const currentRouteKey = `${card.id}:${pts.length}:${pts[0][0]}`;
@@ -402,7 +434,7 @@ export default function MapView({
             // Draw deviation indicator if active deviation alert exists
             const activePts = plannedRoutesRef.current[id]?.polyline || pts;
             const openDevAlert = (alerts || []).find(
-              (a) => (a.user_id === id || a.travel_card_id === card?.id) && a.type === "deviation" && a.status === "open"
+              (a) => (a.travel_card_id ? a.travel_card_id === d.travelCardId : a.user_id === d.userId) && a.type === "deviation" && a.status === "open"
             );
             let devLine = deviationLinesRef.current[id];
             if (openDevAlert && activePts && d.lastLatlng) {
@@ -419,8 +451,9 @@ export default function MapView({
               if (!devLine) {
                 devLine = L.polyline(linePts, {
                   color: "#dc2626",
-                  weight: 3.5,
-                  dashArray: "5, 6",
+                  weight: 5,
+                  lineCap: "round",
+                  lineJoin: "round",
                   opacity: 0.95,
                 }).addTo(map);
                 devLine.bindTooltip(openDevAlert.message || "Route deviation", { permanent: true, direction: "top" });
@@ -436,6 +469,19 @@ export default function MapView({
         }
       }
     );
+
+    // Filter changes (for example selecting/closing a completed card) must
+    // remove the old map layers, not leave an orphaned animated marker behind.
+    const visibleIds = new Set(Object.keys(devices));
+    Object.keys(markersRef.current).forEach((id) => {
+      if (!visibleIds.has(id)) {
+        markersRef.current[id].remove();
+        delete markersRef.current[id];
+        trailsRef.current[id]?.remove();
+        delete trailsRef.current[id];
+        clearRouteFor(id);
+      }
+    });
 
     // First load auto-fit ONLY ONCE
     if (!initializedRef.current) {
@@ -468,7 +514,7 @@ export default function MapView({
         });
       }
     }
-  }, [devices, travelCards, alerts, follow, safetyAssessments]);
+  }, [devices, travelCards, alerts, follow, safetyAssessments, selected]);
 
   // Zoom to the selected device whenever a sidebar card is clicked. This is
   // deliberately its own effect, keyed only on `selected` (not on every
@@ -482,6 +528,34 @@ export default function MapView({
     leafletMap.current.flyTo(device.lastLatlng, 16, { duration: 0.8 });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selected]);
+
+  // A newly created card can be selected before its first GPS upload reaches
+  // the dashboard. Draw its planned route anyway, then the normal per-device
+  // renderer takes over as soon as the card-linked location arrives.
+  useEffect(() => {
+    const map = leafletMap.current;
+    if (!map) return undefined;
+    const existing = selectedCardRouteRef.current;
+    if (existing) { existing.remove(); selectedCardRouteRef.current = null; }
+    if (!selectedCard || devices[selectedCard.id]) return undefined;
+
+    let cancelled = false;
+    getRoadRoute(selectedCard).then((routeRes) => {
+      if (cancelled || !routeRes?.polyline || routeRes.polyline.length < 2) return;
+      const line = L.polyline(routeRes.polyline, {
+        color: "#1B4332", weight: 5, opacity: 0.8, lineJoin: "round",
+      }).addTo(map);
+      selectedCardRouteRef.current = line;
+      map.fitBounds(line.getBounds(), { padding: [70, 70], maxZoom: 13 });
+    });
+    return () => {
+      cancelled = true;
+      if (selectedCardRouteRef.current) {
+        selectedCardRouteRef.current.remove();
+        selectedCardRouteRef.current = null;
+      }
+    };
+  }, [selectedCard, devices]);
 
   // Alert markers — one pulsing red pin per open/acknowledged alert that has
   // a location. Cleared automatically once an alert is resolved.

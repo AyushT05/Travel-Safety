@@ -14,9 +14,13 @@ export default function useSafetyAssessments() {
       setAssessments(next);
     }
 
+    // Keyed the same way as useDevices (travel_card_id, else user_id) so the
+    // lookup assessments[deviceKey] lines up with the per-trip device entries.
+    const keyOf = (row) => row.travel_card_id || row.user_id;
+
     function applyRow(row) {
       if (!row?.user_id) return;
-      publish({ ...assessmentsRef.current, [row.user_id]: row });
+      publish({ ...assessmentsRef.current, [keyOf(row)]: row });
     }
 
     async function bootstrap() {
@@ -27,7 +31,7 @@ export default function useSafetyAssessments() {
       if (!cancelled && !error && data) {
         const initial = {};
         for (const row of data) {
-          initial[row.user_id] = row;
+          initial[keyOf(row)] = row;
         }
         publish(initial);
       } else if (error) {

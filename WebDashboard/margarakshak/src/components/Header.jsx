@@ -1,10 +1,13 @@
 import { statusFor } from "../utils/helpers";
 import { useAuth } from "../context/AuthContext";
 
-export default function Header({ devices, openAlertsCount = 0, onOpenAlerts, urgentIncidentCount = 0, onOpenIncidents }) {
+export default function Header({ devices, travelCards = [], openAlertsCount = 0, onOpenAlerts, urgentIncidentCount = 0, onOpenIncidents }) {
   const { auth, logout } = useAuth();
   const names = Object.keys(devices);
-  const live  = names.filter(n => statusFor(devices[n].timestamp) === "live").length;
+  const cardIds = new Set(travelCards.map((card) => card.id));
+  // GPS rows survive a trip for audit/trail history. Header totals must be
+  // cards, not those retained rows, otherwise deleted/old trips look alive.
+  const live = names.filter((n) => cardIds.has(devices[n]?.travelCardId) && statusFor(devices[n].timestamp) === "live").length;
 
   return (
     <header>
@@ -28,7 +31,7 @@ export default function Header({ devices, openAlertsCount = 0, onOpenAlerts, urg
             <rect x="5" y="2" width="14" height="20" rx="2"/>
             <line x1="12" y1="18" x2="12" y2="18.01"/>
           </svg>
-          <strong>{names.length}</strong> total
+          <strong>{travelCards.length}</strong> cards
         </div>
         <div className="stat-pill">
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">

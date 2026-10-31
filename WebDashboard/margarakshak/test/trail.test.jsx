@@ -20,6 +20,7 @@ vi.mock("../src/lib/supabase", () => {
 
 import useDevices from "../src/hooks/useDevices";
 import { pickActivity } from "../src/hooks/useActivityState";
+import { cardForDevice } from "../src/utils/helpers";
 import MapView from "../src/components/MapView";
 
 const U = "user-1";
@@ -34,27 +35,44 @@ const cards = [
 
 beforeEach(() => { handlers = []; tables = {}; });
 
-test("history rebuilds trail on load, realtime pings extend it, trip change resets it", async () => {
-  tables.latest_locations = [row(5)];
+test("history rebuilds trail on load, realtime pings extend it, a new trip gets its OWN entry", async () => {
+  tables.latest_locations_by_card = [row(5)];
   tables.locations = [5,4,3,2,1,0].map(i => row(i)).concat([row(-9,"old-card")]); // newest first, like the DB; old trip row must be excluded
   const { result } = renderHook(() => useDevices());
-  await waitFor(() => expect(result.current.devices[U]?.trail?.length).toBe(6));
+  await waitFor(() => expect(result.current.devices["card-1"]?.trail?.length).toBe(6));
+  expect(result.current.devices["card-1"].userId).toBe(U);
 
   act(() => handlers[0]({ new: row(6) }));
   act(() => handlers[0]({ new: row(7) }));
-  expect(result.current.devices[U].trail.length).toBe(8);
+  expect(result.current.devices["card-1"].trail.length).toBe(8);
 
-  act(() => handlers[0]({ new: row(8, "card-2") }));          // new trip starts
-  expect(result.current.devices[U].trail.length).toBe(1);
+  // Same user starts a new trip: a separate entry appears, the finished trip is untouched.
+  act(() => handlers[0]({ new: row(8, "card-2") }));
+  expect(result.current.devices["card-2"].trail.length).toBe(1);
+  expect(result.current.devices["card-1"].trail.length).toBe(8);
+  expect(Object.keys(result.current.devices).sort()).toEqual(["card-1", "card-2"]);
 
   act(() => result.current.clearTrails());
-  expect(result.current.devices[U].trail.length).toBe(1);
+  expect(result.current.devices["card-1"].trail.length).toBe(1);
+});
+
+test("legacy pings without a travel card are still keyed by user id", async () => {
+  tables.latest_locations_by_card = [row(0, null)];
+  const { result } = renderHook(() => useDevices());
+  await waitFor(() => expect(result.current.devices[U]).toBeTruthy());
+  expect(result.current.devices[U].travelCardId).toBeNull();
+});
+
+test("cardForDevice returns the device's own card, not the user's current one", () => {
+  const dev = { userId: U, travelCardId: "card-1" };
+  expect(cardForDevice(cards, "card-1", dev).full_name).toBe("A");
+  expect(cardForDevice(cards, "card-2", { userId: U, travelCardId: "card-2" }).full_name).toBe("B");
 });
 
 test("MapView draws the trail even when the polled card list flips order", async () => {
-  tables.latest_locations = [row(0)]; tables.locations = [row(0)];
+  tables.latest_locations_by_card = [row(0)]; tables.locations = [row(0)];
   const { result } = renderHook(() => useDevices());
-  await waitFor(() => expect(result.current.devices[U]).toBeTruthy());
+  await waitFor(() => expect(result.current.devices["card-1"]).toBeTruthy());
   const P = (devices, c) => <MapView devices={devices} travelCards={c} alerts={[]} follow={false} selected={null} setMapActions={()=>{}}/>;
   const { container, rerender } = render(P(result.current.devices, cards));
   for (let i = 1; i <= 8; i++) {

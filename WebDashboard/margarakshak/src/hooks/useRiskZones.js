@@ -11,28 +11,33 @@ const UNSAFE_COLS = 'id,category,severity,description,lat,lon,radius_m,status,cr
  * (unsafe_zones), as one list. Refreshed every minute. A failed refresh keeps the last good list and
  * reports the error, so the map never silently empties.
  */
-export default function useRiskZones() {
+export default function useRiskZones(historicalAt = null) {
   const [state, setState] = useState({ zones: [], loading: true, error: null, loadedAt: null });
   const alive = useRef(true);
+  const historicalAtMs = historicalAt instanceof Date ? historicalAt.getTime() : null;
 
   const load = useCallback(async () => {
     try {
       const [risk, unsafe] = await Promise.all([
-        supabase.from('risk_zones').select(RISK_COLS).eq('status', 'active'),
+        // Do not filter to active/unexpired rows here. A past date is a
+        // historical lookup, so expired disaster records must reach the risk
+        // model, which then evaluates whether each one was live at that time.
+        supabase.from('risk_zones').select(RISK_COLS),
         supabase.from('unsafe_zones').select(UNSAFE_COLS).in('status', ['verified', 'pending']),
       ]);
       if (risk.error) throw new Error(`risk_zones: ${risk.error.message}`);
       if (unsafe.error) throw new Error(`unsafe_zones: ${unsafe.error.message}`);
       const now = new Date();
+      const selectedTime = historicalAtMs === null ? now : new Date(historicalAtMs);
       const zones = [
-        ...(risk.data || []).map((r) => zoneFromRiskRow(r, now)),
+        ...(risk.data || []).map((r) => zoneFromRiskRow(r, selectedTime, historicalAtMs !== null)),
         ...(unsafe.data || []).map(zoneFromUnsafeRow),
       ].filter(Boolean);
       if (alive.current) setState({ zones, loading: false, error: null, loadedAt: now });
     } catch (e) {
       if (alive.current) setState((s) => ({ ...s, loading: false, error: e.message || String(e) }));
     }
-  }, []);
+  }, [historicalAtMs]);
 
   useEffect(() => {
     alive.current = true;
