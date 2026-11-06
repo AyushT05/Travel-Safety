@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, ActivityIndicator, StyleSheet } from 'react-native';
+import { View, TouchableOpacity, ActivityIndicator, StyleSheet } from 'react-native';
+import { Text, TextInput } from './Text';
 import { Feather } from '@expo/vector-icons';
 import { searchPlaces, fetchPlaceRisk } from '../lib/placeRisk';
 
@@ -73,10 +74,10 @@ export default function PlaceField({ value, onChangeText, info, onInfoChange, st
   return (
     <View style={style}>
       <View style={[st.inputWrap, focused && st.inputFocused]}>
-        <Feather name={place ? 'map-pin' : 'search'} size={15} color={place ? '#1B4332' : '#9E9484'} />
+        <Feather name={place ? 'map-pin' : 'search'} size={15} color={place ? '#1B4332' : '#6F8378'} />
         <TextInput
           style={st.input} value={value} onChangeText={handleChange}
-          placeholder={placeholder} placeholderTextColor="#C4BAA8"
+          placeholder={placeholder} placeholderTextColor="#A7B8AD"
           autoCorrect={false}
           onFocus={() => { setFocused(true); if (suggestions.length) setOpen(true); }}
           onBlur={() => setFocused(false)}
@@ -183,26 +184,26 @@ function RiskCard({ info }) {
 const st = StyleSheet.create({
   inputWrap: {
     flexDirection: 'row', alignItems: 'center', gap: 10,
-    backgroundColor: '#fff', borderWidth: 1.5, borderColor: '#EAE4D9', borderRadius: 14,
+    backgroundColor: '#fff', borderWidth: 1.5, borderColor: '#DAE6DD', borderRadius: 14,
     paddingHorizontal: 14, marginBottom: 6,
   },
   inputFocused: { borderColor: '#1B4332' },
-  input: { flex: 1, paddingVertical: 14, fontSize: 15, color: '#1A1A1A' },
-  dropdown: { backgroundColor: '#fff', borderWidth: 1, borderColor: '#EAE4D9', borderRadius: 12, marginBottom: 8, overflow: 'hidden' },
-  option: { flexDirection: 'row', gap: 10, paddingHorizontal: 14, paddingVertical: 11, borderBottomWidth: 1, borderBottomColor: '#F7F5F0' },
-  optionName: { fontSize: 14, fontWeight: '600', color: '#1A1A1A' },
-  optionSub: { fontSize: 12, color: '#9E9484', marginTop: 1 },
-  searchError: { fontSize: 12, color: '#9E9484', padding: 12 },
+  input: { flex: 1, paddingVertical: 14, fontSize: 15, color: '#0F2118' },
+  dropdown: { backgroundColor: '#fff', borderWidth: 1, borderColor: '#DAE6DD', borderRadius: 12, marginBottom: 8, overflow: 'hidden' },
+  option: { flexDirection: 'row', gap: 10, paddingHorizontal: 14, paddingVertical: 11, borderBottomWidth: 1, borderBottomColor: '#F2F7F3' },
+  optionName: { fontSize: 14, fontWeight: '600', color: '#0F2118' },
+  optionSub: { fontSize: 12, color: '#6F8378', marginTop: 1 },
+  searchError: { fontSize: 12, color: '#6F8378', padding: 12 },
   unverified: { fontSize: 12, color: '#92400E', marginBottom: 6 },
   checking: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 10 },
   checkingText: { fontSize: 12.5, color: '#52796F' },
   card: { borderWidth: 1, borderRadius: 12, padding: 12, marginBottom: 8 },
   cardHead: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 4 },
-  cardTag: { fontSize: 11, fontWeight: '800', letterSpacing: 0.6 },
+  cardTag: { fontSize: 11, fontWeight: '800', },
   cardTitle: { fontSize: 14, fontWeight: '800', marginBottom: 3 },
   cardBody: { fontSize: 12.5, lineHeight: 18 },
   cardSource: { fontSize: 11, marginTop: 6, opacity: 0.8 },
   more: { fontSize: 12.5, color: '#1B4332', fontWeight: '700', marginBottom: 8, textDecorationLine: 'underline' },
   failed: { fontSize: 12, color: '#92400E', marginBottom: 6 },
-  footnote: { fontSize: 11, color: '#9E9484', marginBottom: 2 },
+  footnote: { fontSize: 11, color: '#6F8378', marginBottom: 2 },
 });

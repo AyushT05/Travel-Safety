@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client'
 import './index.css'
 import './alerts.css'
 import './Nearby.css'
+import './theme.css'
 import App from './App.jsx'
 import { AuthProvider } from './context/AuthContext.jsx'
 import "leaflet/dist/leaflet.css";

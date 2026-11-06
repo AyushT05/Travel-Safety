@@ -34,7 +34,9 @@ export async function requestSafetyAssessment(lat, lon, userId, travelCardId, sp
   } catch (e) {
     console.warn('Safety assessment via server failed, using direct query:', e.message);
     // Fallback: just read the latest assessment from the table
-    return fetchLatestAssessment(userId);
+    // Mark it so the UI never presents an old reading as a fresh one.
+    const stale = await fetchLatestAssessment(userId);
+    return stale ? { ...stale, stale: true } : null;
   }
 }
 

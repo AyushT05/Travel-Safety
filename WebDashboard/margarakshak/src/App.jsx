@@ -13,6 +13,7 @@ import useDevices from "./hooks/useDevices";
 import useActivityState, { pickActivity } from "./hooks/useActivityState";
 import useAlerts from "./hooks/useAlerts";
 import useIncidents from "./hooks/useIncidents";
+import useTripInsights from "./hooks/useTripInsights";
 import useSafetyAssessments from "./hooks/useSafetyAssessments";
 import SafetyPanel from "./components/SafetyPanel";
 import RiskLayerPanel from "./components/RiskLayerPanel";
@@ -23,6 +24,7 @@ import { zoneCenter, zoneContribution } from "./lib/risk/model";
 import { useState, useEffect, useMemo } from "react";
 
 import { useAuth } from "./context/AuthContext";
+import { filterVisibleDevices } from "./utils/tripPhase";
 
 import { supabase } from "./lib/supabase";
 
@@ -43,6 +45,7 @@ export default function App() {
   const { alerts, openCount, acknowledge, resolve } = useAlerts();
   const { assessments: safetyAssessments } = useSafetyAssessments();
   const { incidents, urgentCount, act: actOnIncident } = useIncidents();
+  const { insights: tripInsights } = useTripInsights();
   const [showIncidents, setShowIncidents] = useState(false);
 
   // Risk overlays: heat map of recorded hazard zones, past-alert heat, tourist clusters / density.
@@ -95,13 +98,18 @@ export default function App() {
   }, [devices, travelCards]);
   // Keep the map calm: ongoing cards are visible by default. A completed card
   // becomes visible only while an administrator has explicitly opened it.
-  const visibleMapDevices = useMemo(() => {
-    const today = new Date().toISOString().slice(0, 10);
-    return Object.fromEntries(Object.entries(mappedDevices).filter(([id, device]) => {
-      const card = travelCards.find((candidate) => candidate.id === id || candidate.id === device.travelCardId);
-      return card && (card.end_date >= today || card.id === selectedCard?.id);
-    }));
-  }, [mappedDevices, travelCards, selectedCard]);
+  // Only ACTIVE trips show a blip all the time. A completed (or not-yet-started) trip appears, gray and
+  // still, only while an administrator has that exact card open.
+  const visibleMapDevices = useMemo(
+    () => filterVisibleDevices(mappedDevices, travelCards, selectedCard),
+    [mappedDevices, travelCards, selectedCard]);
+
+  // The card list refreshes every 10 s; keep the open card in step with it instead of a stale copy.
+  const liveSelectedCard = useMemo(
+    () => (selectedCard && travelCards.find((c) => c.id === selectedCard.id)) || selectedCard,
+    [selectedCard, travelCards]);
+  const selectedDevice = selected ? devices[selected] : null;
+  const selectedInsight = selected ? tripInsights[selected] : null;
 
   function openTravelCard(card) {
     setSelectedCard(card);
@@ -237,6 +245,7 @@ export default function App() {
             activity={pickActivity(activity, devices[selected], devices[selected]?.userId)}
             onOpenNearby={setNearbyTarget}
             safetyAssessment={safetyAssessments[selected]}
+            insight={tripInsights[selected]}
             onOpenSafety={setSafetyTarget}
             onToggleLayers={() => setShowMapLayers((open) => !open)}
             mapLayersOpen={showMapLayers}
@@ -244,7 +253,7 @@ export default function App() {
           {selectedCard && !isCardMinimized && (
             <div className="map-travel-card-panel">
               <TravelCardDetail
-                card={selectedCard}
+                card={liveSelectedCard}
                 isAdmin={auth?.role === "admin"}
                 onDeleteCompletedCard={deleteCompletedCard}
                 onMinimize={() => setIsCardMinimized(true)}
@@ -253,11 +262,21 @@ export default function App() {
             </div>
           )}
           {selectedCard && isCardMinimized && (
-            <button className="minimized-travel-card" onClick={() => setIsCardMinimized(false)}>
-              <span>Travel card</span>
-              <strong>{selectedCard.full_name || "Traveller"}</strong>
-              <span>Expand</span>
-            </button>
+            // Minimized = the card is tucked away but the traveller stays selected, so the map keeps following
+            // and updating them. (Close deselects; this does not.)
+            <div className={`minimized-travel-card ${selectedInsight && selectedInsight.status !== "normal" ? `ins-${selectedInsight.status}` : ""}`}
+                 role="group" aria-label="Minimized travel card">
+              <span className={`mtc-dot ${(selectedDevice?.freshnessStatus || "stale").toLowerCase()}`} title={selectedDevice ? `Location ${selectedDevice.freshnessStatus}` : "No location yet"} />
+              <button type="button" className="mtc-expand" onClick={() => setIsCardMinimized(false)} title="Expand travel card"
+                      style={{ all: "unset", cursor: "pointer", display: "flex", alignItems: "center", gap: 9 }}>
+                <span>Tracking</span>
+                <strong>{liveSelectedCard?.full_name || "Traveller"}</strong>
+                {selectedInsight && selectedInsight.status !== "normal" && <span>· {selectedInsight.status === "alert" ? "needs attention" : "worth a look"}</span>}
+                <span>Expand ▴</span>
+              </button>
+              <button type="button" className="mtc-close" aria-label="Stop tracking this traveller"
+                      onClick={() => { setSelectedCard(null); setSelected(null); setIsCardMinimized(false); }}>✕</button>
+            </div>
           )}
         </div>
       </div>

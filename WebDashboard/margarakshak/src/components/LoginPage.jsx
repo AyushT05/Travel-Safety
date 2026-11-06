@@ -38,72 +38,84 @@ export default function LoginPage() {
     });
   }
 
+  const isIn = tab === "signin";
+  const switchTab = (next) => { setTab(next); setError(""); setMessage(""); };
+
   return (
     <div className="auth-root">
-      <div className="auth-split-card">
+      {/* BRAND PANEL */}
+      <section className="auth-art" aria-hidden="false">
+        <img className="auth-logo" src="/logo-full-light.png" alt="Margarakshak" />
 
-        {/* LEFT PANEL */}
-        <div className="auth-left">
-          <div className="auth-brand">
-            <div className="auth-brand-icon">
-  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#2d6a4f" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M12 22s-8-4.5-8-11.8A8 8 0 0 1 12 2a8 8 0 0 1 8 8.2c0 7.3-8 11.8-8 11.8z"/>
-    <circle cx="12" cy="10" r="3"/>
-  </svg>
-</div>
-            <div className="auth-brand-name">Live<em>Tracker</em></div>
-            <p className="auth-brand-sub">Real-time location sharing<br />for people you trust</p>
-          </div>
-          <div className="auth-map-dots">
-            {Array.from({ length: 40 }).map((_, i) => (
-              <div key={i} className={`auth-map-dot ${[2,9,13,21,28,34].includes(i) ? "active" : [5,17,31].includes(i) ? "active2" : ""}`} />
-            ))}
-          </div>
+        <svg className="auth-map" viewBox="0 0 520 380" role="img" aria-label="A traveller's route across a map with a geofenced zone">
+          <g className="auth-contours" fill="none" stroke="currentColor" strokeWidth="1">
+            <path d="M-10 90C80 40 150 120 240 80S400 20 530 70" />
+            <path d="M-10 140C90 90 160 170 250 130S410 70 530 120" />
+            <path d="M-10 190C100 140 170 220 260 180S420 120 530 170" />
+            <path d="M-10 240C110 190 180 270 270 230S430 170 530 220" />
+            <path d="M-10 290C120 240 190 320 280 280S440 220 530 270" />
+            <path d="M-10 340C130 290 200 370 290 330S450 270 530 320" />
+          </g>
+          <circle className="auth-fence" cx="372" cy="222" r="48" />
+          <path className="auth-route" pathLength="1" d="M56 312C130 292 150 214 228 236S318 312 372 222S446 120 470 78" />
+          {[[56,312],[228,236],[372,222],[470,78]].map(([x, y], i) => (
+            <g key={i} className="auth-pin" style={{ animationDelay: `${0.5 + i * 0.85}s` }}>
+              {i === 3 && <circle className="auth-pin-ring" cx={x} cy={y} r="9" />}
+              <circle cx={x} cy={y} r={i === 3 ? 7 : 5} />
+            </g>
+          ))}
+        </svg>
+
+        <div className="auth-pitch">
+          <h2>Safe passage, watched over in real time.</h2>
+          <p>Live traveller locations, zone alerts and SOS response for tourism and police teams.</p>
           <ul className="auth-features">
-            <li>Real-time GPS tracking</li>
-            <li>Share with trusted people</li>
-            <li>Speed &amp; accuracy metrics</li>
+            <li>Live traveller map</li>
+            <li>Geofence and SOS alerts</li>
+            <li>Incident briefs for responders</li>
           </ul>
         </div>
+      </section>
 
-        {/* RIGHT PANEL */}
-        <div className="auth-right">
+      {/* FORM PANEL */}
+      <main className="auth-panel">
+        <div className="auth-form-wrap">
+          <img className="auth-logo-small" src="/logo-full.png" alt="Margarakshak" />
           <div className="auth-form-head">
-            <h1>{tab === "signin" ? "Welcome back" : "Create account"}</h1>
-            <p>{tab === "signin" ? "Sign in to continue to LiveTracker" : "Start tracking in minutes"}</p>
+            <h1>{isIn ? "Welcome back" : "Create your account"}</h1>
+            <p>{isIn ? "Sign in to open the monitoring dashboard." : "Set up access to the monitoring dashboard."}</p>
           </div>
 
-          {/* Tabs */}
-          <div className="auth-tabs">
-            <button className={`auth-tab ${tab === "signin" ? "active" : ""}`} onClick={() => { setTab("signin"); setError(""); setMessage(""); }} type="button">Sign In</button>
-            <button className={`auth-tab ${tab === "signup" ? "active" : ""}`} onClick={() => { setTab("signup"); setError(""); setMessage(""); }} type="button">Sign Up</button>
-            <div className="auth-tab-indicator" style={{ transform: tab === "signin" ? "translateX(0)" : "translateX(100%)" }} />
+          <div className="auth-tabs" role="tablist">
+            <button role="tab" aria-selected={isIn} className={`auth-tab ${isIn ? "active" : ""}`} onClick={() => switchTab("signin")} type="button">Sign in</button>
+            <button role="tab" aria-selected={!isIn} className={`auth-tab ${!isIn ? "active" : ""}`} onClick={() => switchTab("signup")} type="button">Sign up</button>
+            <div className="auth-tab-indicator" style={{ transform: isIn ? "translateX(0)" : "translateX(100%)" }} />
           </div>
 
-          {message && <div className="auth-message">{message}</div>}
-          {error && <div className="auth-error">{error}</div>}
+          {message && <div className="auth-message" role="status">{message}</div>}
+          {error && <div className="auth-error" role="alert">{error}</div>}
 
-          <form onSubmit={tab === "signin" ? handleSignIn : handleSignUp} className="auth-form">
-            {tab === "signup" && (
+          <form onSubmit={isIn ? handleSignIn : handleSignUp} className="auth-form">
+            {!isIn && (
               <div className="auth-field">
-                <label>FULL NAME</label>
-                <input type="text" placeholder="Your name" value={name} onChange={e => setName(e.target.value)} required />
+                <label htmlFor="auth-name">Full name</label>
+                <input id="auth-name" type="text" autoComplete="name" placeholder="Your name" value={name} onChange={e => setName(e.target.value)} required />
               </div>
             )}
             <div className="auth-field">
-              <label>EMAIL ADDRESS</label>
-              <input type="email" placeholder="you@example.com" value={email} onChange={e => setEmail(e.target.value)} required />
+              <label htmlFor="auth-email">Email address</label>
+              <input id="auth-email" type="email" autoComplete="email" placeholder="you@example.com" value={email} onChange={e => setEmail(e.target.value)} required />
             </div>
             <div className="auth-field">
-              <label>PASSWORD</label>
-              <input type="password" placeholder="••••••••" value={password} onChange={e => setPassword(e.target.value)} required />
+              <label htmlFor="auth-pass">Password</label>
+              <input id="auth-pass" type="password" autoComplete={isIn ? "current-password" : "new-password"} placeholder="Enter your password" value={password} onChange={e => setPassword(e.target.value)} required />
             </div>
             <button className="auth-submit" disabled={loading} type="submit">
-              {loading ? <span className="auth-spinner" /> : tab === "signin" ? "Sign in →" : "Create account →"}
+              {loading ? <span className="auth-spinner" /> : isIn ? "Sign in" : "Create account"}
             </button>
           </form>
 
-          <div className="auth-divider">or</div>
+          <div className="auth-divider"><span>or</span></div>
 
           <button className="auth-google-btn" onClick={handleGoogle} type="button">
             <svg width="18" height="18" viewBox="0 0 18 18">
@@ -115,7 +127,7 @@ export default function LoginPage() {
             Continue with Google
           </button>
         </div>
-      </div>
+      </main>
     </div>
   );
 }

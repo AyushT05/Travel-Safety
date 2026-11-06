@@ -68,6 +68,28 @@ export default function SafetyPanel({ assessment, onClose }) {
             </div>
           )}
 
+          {/* How the score was built: every factor, whether it could be checked, and what it added */}
+          {Array.isArray(assessment.score_breakdown) && assessment.score_breakdown.length > 0 && (
+            <div className="safety-section">
+              <div className="safety-section-title">
+                How this score was calculated
+                {assessment.data_quality && <span className="safety-quality"> · data {assessment.data_quality}{assessment.confidence != null ? ` (${Math.round(assessment.confidence * 100)}% of sources reachable)` : ""}</span>}
+              </div>
+              {assessment.score_breakdown.map((f) => (
+                <div key={f.key} className="safety-factor" style={{ opacity: f.available ? 1 : 0.55 }}>
+                  <div className="safety-factor-info">
+                    <div className="safety-factor-label">{f.label}</div>
+                    <div className="safety-factor-detail">
+                      {f.available
+                        ? `${Math.round((f.score || 0) * 100)}% risk · adds ${Math.round((f.contribution || 0) * 100)} pts${(f.evidence?.reasons || []).length ? ` · ${f.evidence.reasons.join(", ")}` : f.evidence?.assessment ? ` · ${f.evidence.assessment}` : ""}`
+                        : `Could not be checked${f.note ? ` (${f.note})` : ""}; not counted either way`}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
           {/* Emergency distances */}
           <div className="safety-section">
             <div className="safety-section-title">Nearest Emergency Services</div>

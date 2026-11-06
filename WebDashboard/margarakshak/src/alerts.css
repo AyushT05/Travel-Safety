@@ -12,7 +12,7 @@
   max-width: 92vw;
   height: 100%;
   background: #fff;
-  border-left: 1px solid #eae4d9;
+  border-left: 1px solid #DAE6DD;
   display: flex;
   flex-direction: column;
   box-shadow: -8px 0 24px rgba(0, 0, 0, 0.08);
@@ -23,7 +23,7 @@
   align-items: center;
   justify-content: space-between;
   padding: 18px 20px;
-  border-bottom: 1px solid #f0ebe3;
+  border-bottom: 1px solid #E7F0E9;
 }
 
 .alerts-panel-title {
@@ -36,8 +36,8 @@
   width: 30px;
   height: 30px;
   border-radius: 15px;
-  border: 1px solid #eae4d9;
-  background: #fafaf8;
+  border: 1px solid #DAE6DD;
+  background: #F8FBF8;
   color: #6b7c74;
   display: flex;
   align-items: center;
@@ -55,18 +55,18 @@
 }
 
 .alerts-empty {
-  color: #9e9484;
+  color: #6F8378;
   font-size: 13px;
   text-align: center;
   padding: 32px 12px;
 }
 
 .alert-item {
-  border: 1px solid #eae4d9;
+  border: 1px solid #DAE6DD;
   border-left-width: 4px;
   border-radius: 12px;
   padding: 12px 14px;
-  background: #fafaf8;
+  background: #F8FBF8;
 }
 
 .alert-item.severity-critical { border-left-color: #dc2626; }
@@ -83,24 +83,23 @@
 .alert-type {
   font-size: 12px;
   font-weight: 700;
-  color: #1a1a1a;
+  color: #0F2118;
 }
 
 .alert-status-badge {
   font-size: 10px;
   font-weight: 700;
-  letter-spacing: 0.3px;
-  text-transform: uppercase;
+  text-transform: none;
   padding: 2px 8px;
   border-radius: 10px;
 }
 
 .alert-status-badge.status-open         { background: #fee2e2; color: #dc2626; }
 .alert-status-badge.status-acknowledged { background: #fef3c7; color: #92400e; }
-.alert-status-badge.status-resolved     { background: #ecfdf5; color: #1b4332; }
+.alert-status-badge.status-resolved     { background: #E8F5EB; color: #1b4332; }
 
-.alert-name { font-size: 13px; font-weight: 600; color: #1a1a1a; margin-bottom: 2px; }
-.alert-meta { font-size: 11px; color: #9e9484; margin-bottom: 4px; }
+.alert-name { font-size: 13px; font-weight: 600; color: #0F2118; margin-bottom: 2px; }
+.alert-meta { font-size: 11px; color: #6F8378; margin-bottom: 4px; }
 .alert-message { font-size: 12px; color: #52796f; margin-bottom: 8px; }
 
 .alert-actions { display: flex; gap: 8px; }
@@ -113,7 +112,7 @@
   padding: 7px 0;
   border-radius: 8px;
   cursor: pointer;
-  border: 1px solid #eae4d9;
+  border: 1px solid #DAE6DD;
   background: #fff;
   color: #52796f;
 }
@@ -126,7 +125,7 @@
   width: 34px;
   height: 34px;
   border-radius: 17px;
-  border: 1.5px solid #eae4d9;
+  border: 1.5px solid #DAE6DD;
   background: #fff;
   display: flex;
   align-items: center;

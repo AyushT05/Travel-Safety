@@ -1,8 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
-import {
-  View, Text, TouchableOpacity, StyleSheet,
-  ActivityIndicator, Animated, Alert, Platform, ScrollView,
-} from 'react-native';
+import { View, TouchableOpacity, StyleSheet, ActivityIndicator, Animated, Alert, Platform, ScrollView } from 'react-native';
+import { Text } from '../components/Text';
 import { StatusBar } from 'expo-status-bar';
 import * as Location from 'expo-location';
 import { Ionicons, Feather } from '@expo/vector-icons';
@@ -10,6 +8,7 @@ import { supabase } from '../lib/supabase';
 import PanicButton from '../components/PanicButton';
 import SafetyBanner from '../components/SafetyBanner';
 import GeofenceBanner from '../components/GeofenceBanner';
+import AiNotice from '../components/AiNotice';
 import NearbyServices from '../components/NearbyServices';
 import { recordFix } from '../lib/locationRecorder';
 import { subscribe } from '../lib/sync';
@@ -242,7 +241,7 @@ export default function ActiveTracking({ user, card, onStop, trackingState, onTr
   const emergency = card.emergency_contacts || [];
 
   return (
-    <View style={{ flex: 1, backgroundColor: '#F7F5F0' }}>
+    <View style={{ flex: 1, backgroundColor: '#F2F7F3' }}>
       <StatusBar style="dark" />
 
       <View style={s.header}>
@@ -259,6 +258,7 @@ export default function ActiveTracking({ user, card, onStop, trackingState, onTr
 
       <View style={{ paddingHorizontal: 20, marginBottom: 4 }}>
         <GeofenceBanner userId={user.id} isSharing={isSharing} />
+        <AiNotice user={user} travelCardId={card.id} isSharing={isSharing} />
         <SafetyBanner
           lat={locationData?.lat}
           lon={locationData?.lon}
@@ -285,7 +285,7 @@ export default function ActiveTracking({ user, card, onStop, trackingState, onTr
               <Ionicons
                 name={isSharing ? 'navigate' : 'navigate-outline'}
                 size={28}
-                color={isSharing ? '#fff' : '#9E9484'}
+                color={isSharing ? '#fff' : '#6F8378'}
               />
             </View>
           </View>
@@ -409,18 +409,18 @@ const s = StyleSheet.create({
   },
   backBtn: {
     width: 40, height: 40, borderRadius: 20, backgroundColor: '#fff',
-    alignItems: 'center', justifyContent: 'center', borderWidth: 1.5, borderColor: '#EAE4D9',
+    alignItems: 'center', justifyContent: 'center', borderWidth: 1.5, borderColor: '#DAE6DD',
   },
-  headerTitle: { fontSize: 17, fontWeight: '700', color: '#1A1A1A' },
+  headerTitle: { fontSize: 17, fontWeight: '700', color: '#0F2118' },
 
   liveCard: {
     backgroundColor: '#fff', borderRadius: 24, padding: 32,
     alignItems: 'center', marginBottom: 16,
-    borderWidth: 1.5, borderColor: '#EAE4D9',
+    borderWidth: 1.5, borderColor: '#DAE6DD',
     shadowColor: '#000', shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.05, shadowRadius: 10, elevation: 2,
   },
-  liveCardActive: { borderColor: '#D1FAE5', backgroundColor: '#F0FDF4' },
+  liveCardActive: { borderColor: '#CBE7D2', backgroundColor: '#F0FDF4' },
 
   orbWrap: { width: 96, height: 96, alignItems: 'center', justifyContent: 'center', marginBottom: 20 },
   orbRing: {
@@ -428,9 +428,9 @@ const s = StyleSheet.create({
     borderWidth: 2, borderColor: '#1B4332',
   },
   orbCore: {
-    width: 72, height: 72, borderRadius: 36, backgroundColor: '#F7F5F0',
+    width: 72, height: 72, borderRadius: 36, backgroundColor: '#F2F7F3',
     alignItems: 'center', justifyContent: 'center',
-    borderWidth: 1.5, borderColor: '#EAE4D9',
+    borderWidth: 1.5, borderColor: '#DAE6DD',
   },
   orbCoreActive: {
     backgroundColor: '#1B4332', borderColor: '#1B4332',
@@ -438,7 +438,7 @@ const s = StyleSheet.create({
     shadowOpacity: 0.3, shadowRadius: 12, elevation: 6,
   },
 
-  liveLabel:       { fontSize: 14, fontWeight: '700', color: '#C4BAA8', letterSpacing: 0.5 },
+  liveLabel:       { fontSize: 14, fontWeight: '700', color: '#A7B8AD', },
   liveLabelActive: { color: '#1B4332' },
 
   coordsRow: { flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 8 },
@@ -447,15 +447,15 @@ const s = StyleSheet.create({
     fontSize: 12, color: '#52796F',
   },
   acquiringRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 10 },
-  acquiringText:{ fontSize: 13, color: '#9E9484' },
+  acquiringText:{ fontSize: 13, color: '#6F8378' },
 
   statsRow: { flexDirection: 'row', gap: 12, marginBottom: 16 },
   statCard: {
     flex: 1, backgroundColor: '#fff', borderRadius: 16, padding: 18,
-    alignItems: 'center', borderWidth: 1, borderColor: '#EAE4D9',
+    alignItems: 'center', borderWidth: 1, borderColor: '#DAE6DD',
   },
   statValue: { fontSize: 22, fontWeight: '800', color: '#1B4332', marginBottom: 4 },
-  statLabel: { fontSize: 11, fontWeight: '600', color: '#9E9484' },
+  statLabel: { fontSize: 11, fontWeight: '600', color: '#6F8378' },
 
   warnBox: {
     flexDirection: 'row', alignItems: 'center', gap: 8,
@@ -486,14 +486,14 @@ const s = StyleSheet.create({
 
   infoCard: {
     backgroundColor: '#fff', borderRadius: 16, padding: 18,
-    marginBottom: 12, borderWidth: 1, borderColor: '#EAE4D9',
+    marginBottom: 12, borderWidth: 1, borderColor: '#DAE6DD',
   },
   infoCardHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 14 },
-  infoCardTitle:  { fontSize: 14, fontWeight: '700', color: '#1A1A1A' },
+  infoCardTitle:  { fontSize: 14, fontWeight: '700', color: '#0F2118' },
   infoRow: {
     flexDirection: 'row', justifyContent: 'space-between',
-    paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: '#F7F5F0',
+    paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: '#F2F7F3',
   },
-  infoLabel: { fontSize: 13, color: '#9E9484', fontWeight: '500' },
-  infoValue: { fontSize: 13, color: '#1A1A1A', fontWeight: '600', flex: 1, textAlign: 'right' },
+  infoLabel: { fontSize: 13, color: '#6F8378', fontWeight: '500' },
+  infoValue: { fontSize: 13, color: '#0F2118', fontWeight: '600', flex: 1, textAlign: 'right' },
 });

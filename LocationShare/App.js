@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { View, ActivityIndicator, StyleSheet } from 'react-native';
+import { View, Animated, StyleSheet } from 'react-native';
+import { useFonts, PlusJakartaSans_400Regular, PlusJakartaSans_500Medium, PlusJakartaSans_600SemiBold, PlusJakartaSans_700Bold, PlusJakartaSans_800ExtraBold } from '@expo-google-fonts/plus-jakarta-sans';
 import { supabase } from './lib/supabase';
 import AuthScreen from './screens/AuthScreen';
 import HomeScreen from './screens/HomeScreen';
@@ -8,7 +9,26 @@ import ActiveTracking from './screens/ActiveTracking';
 import { startSync } from './lib/sync';
 import './lib/backgroundTracking'; // registers the background location task at load time
 
+function Splash() {
+  const fade = React.useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    Animated.timing(fade, { toValue: 1, duration: 700, useNativeDriver: true }).start();
+  }, [fade]);
+  return (
+    <View style={s.splash}>
+      <Animated.Image
+        source={require('./assets/logo-full.png')}
+        resizeMode="contain"
+        style={{ width: 240, height: 68, opacity: fade, transform: [{ translateY: fade.interpolate({ inputRange: [0, 1], outputRange: [8, 0] }) }] }}
+      />
+    </View>
+  );
+}
+
 export default function App() {
+  const [fontsLoaded] = useFonts({
+    PlusJakartaSans_400Regular, PlusJakartaSans_500Medium, PlusJakartaSans_600SemiBold, PlusJakartaSans_700Bold, PlusJakartaSans_800ExtraBold,
+  });
   const [user, setUser]           = useState(null);
   const [loading, setLoading]     = useState(true);
   const [screen, setScreen]       = useState('home'); // home | create | tracking
@@ -35,11 +55,7 @@ export default function App() {
     return () => { cancelled = true; if (stop) stop(); };
   }, [user?.id]);
 
-  if (loading) return (
-    <View style={s.splash}>
-      <ActivityIndicator color="#1B4332" size="large" />
-    </View>
-  );
+  if (loading || !fontsLoaded) return <Splash />;
 
   if (!user) return <AuthScreen />;
 
@@ -74,5 +90,5 @@ export default function App() {
 }
 
 const s = StyleSheet.create({
-  splash: { flex: 1, backgroundColor: '#F4F1EC', alignItems: 'center', justifyContent: 'center' },
+  splash: { flex: 1, backgroundColor: '#F2F7F3', alignItems: 'center', justifyContent: 'center' },
 });

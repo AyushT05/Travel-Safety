@@ -1,3 +1,4 @@
+import { tripPhase } from "../utils/tripPhase";
 import { useState } from "react";
 import DeviceCard from "./DeviceCard";
 import { useAuth } from "../context/AuthContext";
@@ -240,7 +241,7 @@ export default function Sidebar({
                 height="28"
                 viewBox="0 0 24 24"
                 fill="none"
-                stroke="#9E9484"
+                stroke="#6F8378"
                 strokeWidth="1.5"
                 strokeLinecap="round"
                 strokeLinejoin="round"
@@ -350,13 +351,9 @@ export default function Sidebar({
 }
 
 export function TravelCardDetail({ card, onClose, onMinimize, isAdmin, onDeleteCompletedCard }) {
-  const today = new Date().toISOString().split("T")[0];
-
-  const isActive =
-    card.start_date <= today &&
-    card.end_date >= today;
-
-  const isUpcoming = card.start_date > today;
+  const phase = tripPhase(card);
+  const isActive = phase === "active";
+  const isUpcoming = phase === "upcoming";
 
   const statusLabel = isActive
     ? "Active"
@@ -645,7 +642,6 @@ function formatShortDate(date) {
 }
 
 function cardStatus(card) {
-  const today = new Date().toISOString().slice(0, 10);
-  if (card.start_date <= today && card.end_date >= today) return "active";
-  return card.start_date > today ? "upcoming" : "completed";
+  const phase = tripPhase(card);
+  return phase === "unknown" ? "completed" : phase;
 }

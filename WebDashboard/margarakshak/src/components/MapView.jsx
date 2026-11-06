@@ -8,6 +8,8 @@ import L from "leaflet";
 import { colorFor, cardForDevice } from "../utils/helpers";
 import { getRoadRoute } from "../utils/routeService";
 import useRiskLayers from "../hooks/useRiskLayers";
+import useDeviationPaths from "../hooks/useDeviationPaths";
+import { tripPhase } from "../utils/tripPhase";
 
 function makeGoogleDestinationPin() {
   return L.divIcon({
@@ -114,11 +116,12 @@ export default function MapView({
   const leafletMap = useRef(null);
 
   const markersRef = useRef({});
+  const iconKeyRef = useRef({});
+  const deviationLayersRef = useRef({});
 
   const trailsRef = useRef({});
   const plannedRoutesRef = useRef({});
   const waypointMarkersRef = useRef({});
-  const deviationLinesRef = useRef({});
   const selectedCardRouteRef = useRef(null);
 
   // Planned routes are drawn only for the SELECTED travel card. The async route
@@ -137,10 +140,6 @@ export default function MapView({
       waypointMarkersRef.current[id].forEach((m) => m.remove());
       delete waypointMarkersRef.current[id];
     }
-    if (deviationLinesRef.current[id]) {
-      deviationLinesRef.current[id].remove();
-      delete deviationLinesRef.current[id];
-    }
   }
 
   // Last trail array drawn per device. Trails are owned by useDevices
@@ -153,6 +152,7 @@ export default function MapView({
   const dangerZonesRef = useRef([]);
 
   const initializedRef = useRef(false);
+  const deviationPaths = useDeviationPaths({ alerts, devices, selected });
 
   // Initialize map
   useEffect(() => {
@@ -249,7 +249,7 @@ export default function MapView({
     // as findCurrentCard started returning a different (newer) card.
     function popupHtml(name, card, id) {
       return `
-        <div style="font-family:'DM Sans',sans-serif;padding:4px 0;min-width:160px">
+        <div style="font-family:inherit;padding:4px 0;min-width:160px">
           <div style="font-weight:700;font-size:14px;color:#1B4332;margin-bottom:4px">
             ${name}
           </div>
@@ -266,7 +266,7 @@ export default function MapView({
             </div>
           `
               : `
-            <div style="font-size:11px;color:#9ca3af;font-family:monospace">
+            <div style="font-size:11px;color:#9ca3af;font-family:inherit;font-variant-numeric:tabular-nums">
               ${id}
             </div>
           `
@@ -288,7 +288,8 @@ export default function MapView({
         const initials =
           getInitials(name);
 
-        const completed = Boolean(card?.end_date && card.end_date < new Date().toISOString().slice(0, 10));
+        // Only ACTIVE trips get the animated blip. Completed, upcoming or unknown trips are gray and still.
+        const completed = tripPhase(card) !== "active";
         const color = completed ? "#94a3b8" : colorFor(id);
         const isUnsafe = safetyAssessments[id]?.safety_status === "unsafe";
 
@@ -315,20 +316,18 @@ export default function MapView({
 
           markersRef.current[id] =
             marker;
+          iconKeyRef.current[id] = `${color}|${initials}|${isUnsafe}|${completed}`;
         } else {
           // Update marker
           markersRef.current[id].setLatLng(
             d.lastLatlng
           );
 
-          markersRef.current[id].setIcon(
-            makeLiveIcon(
-              color,
-              initials,
-              isUnsafe,
-              completed
-            )
-          );
+          const iconKey = `${color}|${initials}|${isUnsafe}|${completed}`;
+          if (iconKeyRef.current[id] !== iconKey) {
+            markersRef.current[id].setIcon(makeLiveIcon(color, initials, isUnsafe, completed));
+            iconKeyRef.current[id] = iconKey;
+          }
 
           markersRef.current[id].setPopupContent(
             popupHtml(name, card, id)
@@ -430,41 +429,6 @@ export default function MapView({
               }
               waypointMarkersRef.current[id] = wpMarkers;
             }
-
-            // Draw deviation indicator if active deviation alert exists
-            const activePts = plannedRoutesRef.current[id]?.polyline || pts;
-            const openDevAlert = (alerts || []).find(
-              (a) => (a.travel_card_id ? a.travel_card_id === d.travelCardId : a.user_id === d.userId) && a.type === "deviation" && a.status === "open"
-            );
-            let devLine = deviationLinesRef.current[id];
-            if (openDevAlert && activePts && d.lastLatlng) {
-              let closestPt = activePts[0];
-              let minDist = Infinity;
-              for (const pt of activePts) {
-                const dist = Math.hypot(pt[0] - d.lastLatlng[0], pt[1] - d.lastLatlng[1]);
-                if (dist < minDist) {
-                  minDist = dist;
-                  closestPt = pt;
-                }
-              }
-              const linePts = [d.lastLatlng, closestPt];
-              if (!devLine) {
-                devLine = L.polyline(linePts, {
-                  color: "#dc2626",
-                  weight: 5,
-                  lineCap: "round",
-                  lineJoin: "round",
-                  opacity: 0.95,
-                }).addTo(map);
-                devLine.bindTooltip(openDevAlert.message || "Route deviation", { permanent: true, direction: "top" });
-                deviationLinesRef.current[id] = devLine;
-              } else {
-                devLine.setLatLngs(linePts);
-              }
-            } else if (devLine) {
-              devLine.remove();
-              delete deviationLinesRef.current[id];
-            }
           });
         }
       }
@@ -477,6 +441,7 @@ export default function MapView({
       if (!visibleIds.has(id)) {
         markersRef.current[id].remove();
         delete markersRef.current[id];
+        delete iconKeyRef.current[id];
         trailsRef.current[id]?.remove();
         delete trailsRef.current[id];
         clearRouteFor(id);
@@ -515,6 +480,38 @@ export default function MapView({
       }
     }
   }, [devices, travelCards, alerts, follow, safetyAssessments, selected]);
+
+
+  // Route deviation = the red path the traveller actually followed while off route (from stored fixes).
+  useEffect(() => {
+    const map = leafletMap.current;
+    if (!map) return undefined;
+    const layers = deviationLayersRef.current;
+    Object.keys(layers).forEach((key) => {
+      if (!deviationPaths[key]) {
+        layers[key].group.remove();
+        delete layers[key];
+      }
+    });
+    Object.entries(deviationPaths).forEach(([key, dp]) => {
+      let entry = layers[key];
+      if (!entry || entry.alertId !== dp.alertId) {
+        entry?.group.remove();
+        const group = L.layerGroup().addTo(map);
+        const casing = L.polyline(dp.path, { color: "#ffffff", weight: 9, opacity: 0.9, lineCap: "round", lineJoin: "round", interactive: false }).addTo(group);
+        const line = L.polyline(dp.path, { color: "#dc2626", weight: 5.5, opacity: 1, lineCap: "round", lineJoin: "round" }).addTo(group);
+        line.bindTooltip(dp.message || "Route deviation: path taken off the planned route", { sticky: true });
+        const start = L.circleMarker(dp.path[0], { radius: 5, color: "#ffffff", weight: 2, fillColor: "#dc2626", fillOpacity: 1 }).addTo(group);
+        start.bindTooltip("Left the planned route here");
+        entry = { alertId: dp.alertId, group, casing, line, start };
+        layers[key] = entry;
+      } else {
+        entry.casing.setLatLngs(dp.path);
+        entry.line.setLatLngs(dp.path);
+        entry.start.setLatLng(dp.path[0]);
+      }
+    });
+  }, [deviationPaths, mapInstance]);
 
   // Zoom to the selected device whenever a sidebar card is clicked. This is
   // deliberately its own effect, keyed only on `selected` (not on every
@@ -564,7 +561,7 @@ export default function MapView({
     const map = leafletMap.current;
 
     const active = alerts.filter(
-      (a) => a.status !== "resolved" && a.lat != null && a.lon != null
+      (a) => a.status !== "resolved" && a.lat != null && a.lon != null && a.type !== "deviation"
     );
     const activeIds = new Set(active.map((a) => a.id));
 
@@ -590,7 +587,7 @@ export default function MapView({
         const marker = L.marker(latlng, { icon, zIndexOffset: 1000 }).addTo(map);
 
         marker.bindPopup(
-          `<div style="font-family:'DM Sans',sans-serif;font-size:12px">
+          `<div style="font-family:inherit;font-size:12px">
             <div style="font-weight:700;color:#DC2626;margin-bottom:2px">${a.type}</div>
             <div style="color:#6b7280">${new Date(a.created_at).toLocaleString()}</div>
           </div>`

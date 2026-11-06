@@ -1,9 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import {
-  View, Text, ScrollView, TouchableOpacity, StyleSheet,
-  ActivityIndicator, RefreshControl, Platform, Alert, Share,
-  Modal, TextInput,
-} from 'react-native';
+import { View, ScrollView, TouchableOpacity, StyleSheet, ActivityIndicator, RefreshControl, Platform, Alert, Share, Modal, Image } from 'react-native';
+import { Text, TextInput, DISPLAY } from '../components/Text';
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons, Feather } from '@expo/vector-icons';
 import { supabase } from '../lib/supabase';
@@ -184,16 +181,19 @@ export default function HomeScreen({ user, onCreateCard, onStartTracking }) {
   const activeCard = cards.find(c => c.start_date <= today && c.end_date >= today);
 
   return (
-    <View style={{ flex: 1, backgroundColor: '#F7F5F0' }}>
+    <View style={{ flex: 1, backgroundColor: '#F2F7F3' }}>
       <StatusBar style="dark" />
 
       <View style={s.header}>
-        <View>
-          <Text style={s.headerGreeting}>Good {getTimeOfDay()}</Text>
-          <Text style={s.headerName}>{name}</Text>
+        <View style={s.headerLeft}>
+          <Image source={require('../assets/logo-mark.png')} style={s.headerMark} resizeMode="contain" />
+          <View>
+            <Text style={s.headerGreeting}>Good {getTimeOfDay()}</Text>
+            <Text style={s.headerName}>{name}</Text>
+          </View>
         </View>
         <TouchableOpacity style={s.signOutBtn} onPress={() => supabase.auth.signOut()}>
-          <Feather name="log-out" size={16} color="#9E9484" />
+          <Feather name="log-out" size={16} color="#6F8378" />
         </TouchableOpacity>
       </View>
 
@@ -328,7 +328,7 @@ export default function HomeScreen({ user, onCreateCard, onStartTracking }) {
         {!loading && cards.length === 0 && (
           <View style={s.emptyState}>
             <View style={s.emptyIconWrap}>
-              <Ionicons name="map-outline" size={32} color="#9E9484" />
+              <Ionicons name="map-outline" size={32} color="#6F8378" />
             </View>
             <Text style={s.emptyTitle}>No travel cards yet</Text>
             <Text style={s.emptyDesc}>
@@ -369,8 +369,8 @@ function TravelCardItem({ card, today, onStartTracking, onEdit, onDelete, onShar
   const isActive   = card.start_date <= today && card.end_date >= today;
   const isUpcoming = card.start_date > today;
 
-  const statusColor = isActive ? '#1B4332' : isUpcoming ? '#1D4ED8' : '#9E9484';
-  const statusBg    = isActive ? '#ECFDF5'  : isUpcoming ? '#EFF6FF' : '#F4F1EC';
+  const statusColor = isActive ? '#1B4332' : isUpcoming ? '#1D4ED8' : '#6F8378';
+  const statusBg    = isActive ? '#E8F5EB'  : isUpcoming ? '#EFF6FF' : '#F2F7F3';
   const statusLabel = isActive ? 'Active'   : isUpcoming ? 'Upcoming' : 'Completed';
 
   const places     = card.places || [];
@@ -389,24 +389,24 @@ function TravelCardItem({ card, today, onStartTracking, onEdit, onDelete, onShar
             </View>
           </View>
           <View style={s.tcDateRow}>
-            <Feather name="calendar" size={12} color="#9E9484" />
+            <Feather name="calendar" size={12} color="#6F8378" />
             <Text style={s.tcDates}>{formatDate(card.start_date)} — {formatDate(card.end_date)}</Text>
           </View>
           {!isActive && !isUpcoming && (
             <View style={s.tcDateRow}>
-              <Feather name="clock" size={12} color="#9E9484" />
+              <Feather name="clock" size={12} color="#6F8378" />
               <Text style={s.tcDates}>
                 Auto-deletes in {daysUntilAutoDelete(card.end_date, today)} day(s)
               </Text>
             </View>
           )}
         </View>
-        <Feather name={expanded ? 'chevron-up' : 'chevron-down'} size={18} color="#C4BAA8" style={{ marginLeft: 8 }} />
+        <Feather name={expanded ? 'chevron-up' : 'chevron-down'} size={18} color="#A7B8AD" style={{ marginLeft: 8 }} />
       </TouchableOpacity>
 
       {places.length > 0 && (
         <View style={s.tcRouteRow}>
-          <Feather name="map-pin" size={12} color="#9E9484" />
+          <Feather name="map-pin" size={12} color="#6F8378" />
           <Text style={s.tcRoute} numberOfLines={expanded ? undefined : 1}>
             {places.join('  →  ')}
           </Text>
@@ -445,7 +445,7 @@ function ExpandSection({ icon, title, items }) {
   return (
     <View style={s.expandSection}>
       <View style={s.expandHeader}>
-        <Feather name={icon} size={13} color="#9E9484" />
+        <Feather name={icon} size={13} color="#6F8378" />
         <Text style={s.expandTitle}>{title}</Text>
       </View>
       {items.map((item, i) => (
@@ -512,7 +512,7 @@ function EditCardModal({ card, onClose, onSaved }) {
 
   return (
     <Modal visible animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
-      <View style={{ flex: 1, backgroundColor: '#F7F5F0' }}>
+      <View style={{ flex: 1, backgroundColor: '#F2F7F3' }}>
         <View style={m.header}>
           <TouchableOpacity onPress={onClose} style={m.closeBtn}>
             <Feather name="x" size={18} color="#52796F" />
@@ -556,7 +556,7 @@ function EditCardModal({ card, onClose, onSaved }) {
               <TextInput
                 style={[m.input, { flex: 1 }]} value={place}
                 onChangeText={t => { const n = [...places]; n[i] = t; setPlaces(n); }}
-                placeholder={`Destination ${i + 1}`} placeholderTextColor="#C4BAA8"
+                placeholder={`Destination ${i + 1}`} placeholderTextColor="#A7B8AD"
               />
               {places.length > 1 && (
                 <TouchableOpacity style={m.removeCircle}
@@ -618,7 +618,7 @@ function MInput({ value, onChange, placeholder, keyboard }) {
     <TextInput
       style={[m.input, focused && m.inputFocused]}
       value={value} onChangeText={onChange}
-      placeholder={placeholder} placeholderTextColor="#C4BAA8"
+      placeholder={placeholder} placeholderTextColor="#A7B8AD"
       keyboardType={keyboard || 'default'}
       autoCapitalize="none" autoCorrect={false}
       onFocus={() => setFocused(true)} onBlur={() => setFocused(false)}
@@ -666,11 +666,13 @@ const s = StyleSheet.create({
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
     paddingHorizontal: 20, paddingTop: Platform.OS === 'ios' ? 56 : 40, paddingBottom: 16,
   },
-  headerGreeting: { fontSize: 13, color: '#9E9484', fontWeight: '500', marginBottom: 2 },
-  headerName: { fontSize: 24, fontWeight: '800', color: '#1B4332', letterSpacing: -0.5 },
+  headerGreeting: { fontSize: 13, color: '#6F8378', fontWeight: '500', marginBottom: 2 },
+  headerLeft: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  headerMark: { width: 40, height: 36 },
+  headerName: { fontFamily: DISPLAY, fontSize: 24, color: '#0E3B24', letterSpacing: -0.4 },
   signOutBtn: {
     width: 40, height: 40, borderRadius: 20, backgroundColor: '#fff',
-    alignItems: 'center', justifyContent: 'center', borderWidth: 1.5, borderColor: '#EAE4D9',
+    alignItems: 'center', justifyContent: 'center', borderWidth: 1.5, borderColor: '#DAE6DD',
   },
 
   activeBanner: {
@@ -688,40 +690,40 @@ const s = StyleSheet.create({
 
   idCard: {
     backgroundColor: '#fff', borderRadius: 16, padding: 16,
-    borderWidth: 1, borderColor: '#D1FAE5', marginBottom: 20,
+    borderWidth: 1, borderColor: '#CBE7D2', marginBottom: 20,
   },
   idCardTop: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 12 },
   idIconWrap: {
     width: 36, height: 36, borderRadius: 10,
-    backgroundColor: '#ECFDF5', alignItems: 'center', justifyContent: 'center',
+    backgroundColor: '#E8F5EB', alignItems: 'center', justifyContent: 'center',
   },
   idCardLabel: { fontSize: 14, fontWeight: '700', color: '#1B4332' },
   idCardDesc: { fontSize: 12, color: '#6B7C74', marginTop: 1 },
-  idBox: { backgroundColor: '#F7F5F0', borderRadius: 10, padding: 12 },
+  idBox: { backgroundColor: '#F2F7F3', borderRadius: 10, padding: 12 },
   idText: {
     fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace',
-    fontSize: 12, color: '#3D3530', letterSpacing: 0.3,
+    fontSize: 12, color: '#3D3530', 
   },
 
   requestsCard: {
     backgroundColor: '#FFFFFF', borderRadius: 16, padding: 16,
-    borderWidth: 1, borderColor: '#D1FAE5', marginBottom: 20,
+    borderWidth: 1, borderColor: '#CBE7D2', marginBottom: 20,
   },
   requestsHeader: { flexDirection: 'row', alignItems: 'center', gap: 11, marginBottom: 12 },
   requestsIconWrap: {
-    width: 36, height: 36, borderRadius: 10, backgroundColor: '#ECFDF5',
+    width: 36, height: 36, borderRadius: 10, backgroundColor: '#E8F5EB',
     alignItems: 'center', justifyContent: 'center',
   },
   requestsTitle: { fontSize: 15, fontWeight: '800', color: '#1B4332' },
   requestsSubtitle: { fontSize: 12, color: '#6B7C74', marginTop: 3, lineHeight: 17 },
-  refreshRequestsBtn: { width: 34, height: 34, borderRadius: 17, backgroundColor: '#ECFDF5', alignItems: 'center', justifyContent: 'center' },
-  noRequestsText: { fontSize: 12, color: '#9E9484', paddingVertical: 8, lineHeight: 18 },
+  refreshRequestsBtn: { width: 34, height: 34, borderRadius: 17, backgroundColor: '#E8F5EB', alignItems: 'center', justifyContent: 'center' },
+  noRequestsText: { fontSize: 12, color: '#6F8378', paddingVertical: 8, lineHeight: 18 },
   requestItem: {
     borderTopWidth: 1, borderTopColor: '#EAEFEA', paddingTop: 13, marginTop: 4,
   },
-  requesterLabel: { fontSize: 10, fontWeight: '800', color: '#9E9484', letterSpacing: 0.8, marginBottom: 4 },
+  requesterLabel: { fontSize: 10, fontWeight: '800', color: '#6F8378', marginBottom: 4 },
   requesterId: { fontSize: 12, color: '#3D3530', fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace' },
-  requestDate: { fontSize: 11, color: '#9E9484', marginTop: 5 },
+  requestDate: { fontSize: 11, color: '#6F8378', marginTop: 5 },
   requestActions: { flexDirection: 'row', justifyContent: 'flex-end', gap: 8, marginTop: 12 },
   requestActionBtn: { minWidth: 82, alignItems: 'center', justifyContent: 'center', borderRadius: 10, paddingVertical: 9, paddingHorizontal: 14 },
   rejectRequestBtn: { backgroundColor: '#FFF5F5', borderWidth: 1, borderColor: '#FECACA' },
@@ -732,7 +734,7 @@ const s = StyleSheet.create({
   sectionHeader: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14,
   },
-  sectionTitle: { fontSize: 18, fontWeight: '800', color: '#1A1A1A', letterSpacing: -0.3 },
+  sectionTitle: { fontSize: 18, fontWeight: '800', color: '#0F2118', letterSpacing: -0.3 },
   newCardBtn: {
     flexDirection: 'row', alignItems: 'center', gap: 5,
     backgroundColor: '#1B4332', borderRadius: 20, paddingVertical: 7, paddingHorizontal: 14,
@@ -743,42 +745,42 @@ const s = StyleSheet.create({
   emptyIconWrap: {
     width: 72, height: 72, borderRadius: 22, backgroundColor: '#fff',
     alignItems: 'center', justifyContent: 'center', marginBottom: 16,
-    borderWidth: 1, borderColor: '#EAE4D9',
+    borderWidth: 1, borderColor: '#DAE6DD',
   },
-  emptyTitle: { fontSize: 18, fontWeight: '700', color: '#1A1A1A', marginBottom: 8 },
-  emptyDesc: { fontSize: 14, color: '#9E9484', textAlign: 'center', lineHeight: 21, marginBottom: 24, paddingHorizontal: 24 },
+  emptyTitle: { fontSize: 18, fontWeight: '700', color: '#0F2118', marginBottom: 8 },
+  emptyDesc: { fontSize: 14, color: '#6F8378', textAlign: 'center', lineHeight: 21, marginBottom: 24, paddingHorizontal: 24 },
   emptyBtn: { backgroundColor: '#1B4332', borderRadius: 14, paddingVertical: 13, paddingHorizontal: 28 },
   emptyBtnText: { color: '#fff', fontSize: 14, fontWeight: '700' },
 
   travelCard: {
     backgroundColor: '#fff', borderRadius: 18, padding: 18, marginBottom: 12,
-    borderWidth: 1, borderColor: '#EAE4D9',
+    borderWidth: 1, borderColor: '#DAE6DD',
     shadowColor: '#000', shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.05, shadowRadius: 8, elevation: 2,
   },
   tcTop: { flexDirection: 'row', alignItems: 'flex-start', marginBottom: 10 },
   tcTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 6, flexWrap: 'wrap' },
-  tcName: { fontSize: 15, fontWeight: '700', color: '#1A1A1A' },
+  tcName: { fontSize: 15, fontWeight: '700', color: '#0F2118' },
   tcBadge: { flexDirection: 'row', alignItems: 'center', gap: 5, borderRadius: 20, paddingHorizontal: 9, paddingVertical: 4 },
   tcBadgeDot: { width: 6, height: 6, borderRadius: 3 },
   tcBadgeText: { fontSize: 11, fontWeight: '700' },
   tcDateRow: { flexDirection: 'row', alignItems: 'center', gap: 5 },
-  tcDates: { fontSize: 12, color: '#9E9484', fontWeight: '500' },
+  tcDates: { fontSize: 12, color: '#6F8378', fontWeight: '500' },
   tcRouteRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 6, marginBottom: 10 },
   tcRoute: { fontSize: 13, color: '#52796F', flex: 1, lineHeight: 18 },
-  tcExpanded: { borderTopWidth: 1, borderTopColor: '#F0EBE3', paddingTop: 14, marginTop: 4, gap: 14 },
+  tcExpanded: { borderTopWidth: 1, borderTopColor: '#E7F0E9', paddingTop: 14, marginTop: 4, gap: 14 },
   expandSection: { gap: 6 },
   expandHeader: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 4 },
-  expandTitle: { fontSize: 11, fontWeight: '700', color: '#9E9484', letterSpacing: 0.5, textTransform: 'uppercase' },
+  expandTitle: { fontSize: 11, fontWeight: '700', color: '#6F8378', textTransform: 'none' },
   expandItem: { fontSize: 13, color: '#3D3530', lineHeight: 19, paddingLeft: 19 },
   tcActions: {
     flexDirection: 'row', gap: 8, flexWrap: 'wrap',
-    borderTopWidth: 1, borderTopColor: '#F0EBE3', paddingTop: 14, marginTop: 10,
+    borderTopWidth: 1, borderTopColor: '#E7F0E9', paddingTop: 14, marginTop: 10,
   },
   actionBtn: {
     flexDirection: 'row', alignItems: 'center', gap: 5,
     paddingVertical: 8, paddingHorizontal: 12, borderRadius: 10,
-    borderWidth: 1.5, borderColor: '#EAE4D9', backgroundColor: '#FAFAF8',
+    borderWidth: 1.5, borderColor: '#DAE6DD', backgroundColor: '#F8FBF8',
   },
   actionBtnText: { fontSize: 12, fontWeight: '600', color: '#52796F' },
 });
@@ -787,23 +789,23 @@ const m = StyleSheet.create({
   header: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
     paddingHorizontal: 20, paddingTop: Platform.OS === 'ios' ? 56 : 36, paddingBottom: 16,
-    backgroundColor: '#F7F5F0', borderBottomWidth: 1, borderBottomColor: '#EAE4D9',
+    backgroundColor: '#F2F7F3', borderBottomWidth: 1, borderBottomColor: '#DAE6DD',
   },
   closeBtn: {
     width: 36, height: 36, borderRadius: 18, backgroundColor: '#fff',
-    alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: '#EAE4D9',
+    alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: '#DAE6DD',
   },
-  headerTitle: { fontSize: 17, fontWeight: '700', color: '#1A1A1A' },
+  headerTitle: { fontSize: 17, fontWeight: '700', color: '#0F2118' },
   saveBtn: { backgroundColor: '#1B4332', borderRadius: 20, paddingVertical: 8, paddingHorizontal: 18 },
   saveBtnText: { fontSize: 14, fontWeight: '700', color: '#fff' },
   sectionHead: { marginTop: 24, marginBottom: 14 },
-  sectionTitle: { fontSize: 15, fontWeight: '800', color: '#1A1A1A', letterSpacing: -0.2 },
-  sectionSub: { fontSize: 12, color: '#9E9484', marginTop: 3 },
+  sectionTitle: { fontSize: 15, fontWeight: '800', color: '#0F2118', letterSpacing: -0.2 },
+  sectionSub: { fontSize: 12, color: '#6F8378', marginTop: 3 },
   label: { fontSize: 12, fontWeight: '600', color: '#7A8C84', marginBottom: 7 },
   input: {
     paddingVertical: 13, paddingHorizontal: 16,
-    borderWidth: 1.5, borderColor: '#EAE4D9', borderRadius: 12,
-    fontSize: 15, color: '#1A1A1A', backgroundColor: '#fff', marginBottom: 12,
+    borderWidth: 1.5, borderColor: '#DAE6DD', borderRadius: 12,
+    fontSize: 15, color: '#0F2118', backgroundColor: '#fff', marginBottom: 12,
   },
   inputFocused: { borderColor: '#1B4332' },
   listRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 8 },
@@ -819,10 +821,10 @@ const m = StyleSheet.create({
     borderWidth: 1.5, borderColor: '#1B4332', borderStyle: 'dashed', marginBottom: 4,
   },
   addBtnText: { fontSize: 14, fontWeight: '600', color: '#1B4332' },
-  groupCard: { backgroundColor: '#FAFAF8', borderRadius: 14, padding: 16, marginBottom: 10, borderWidth: 1, borderColor: '#EAE4D9' },
+  groupCard: { backgroundColor: '#F8FBF8', borderRadius: 14, padding: 16, marginBottom: 10, borderWidth: 1, borderColor: '#DAE6DD' },
   groupCardAccent: { borderColor: '#FFC9C9', backgroundColor: '#FFF8F8' },
   groupCardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
-  groupCardTitle: { fontSize: 12, fontWeight: '700', color: '#9E9484', letterSpacing: 0.3 },
+  groupCardTitle: { fontSize: 12, fontWeight: '700', color: '#6F8378', },
   removeBtn: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   removeBtnText: { fontSize: 12, color: '#DC2626', fontWeight: '600' },
   submitBtn: {

@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import { View, TouchableOpacity, Text, StyleSheet, Alert, ActivityIndicator } from 'react-native';
+import { View, TouchableOpacity, StyleSheet, Alert, ActivityIndicator } from 'react-native';
+import { Text } from './Text';
 import { Ionicons } from '@expo/vector-icons';
 import { triggerSos, getSos, latestOpenSos, describeSos } from '../lib/sosService';
 import { subscribe, setSmsStatusAndNotify } from '../lib/sync';
@@ -105,7 +106,7 @@ const s = StyleSheet.create({
     shadowColor: '#DC2626', shadowOffset: { width: 0, height: 6 },
     shadowOpacity: 0.3, shadowRadius: 12, elevation: 6,
   },
-  text: { color: '#fff', fontSize: 16, fontWeight: '800', letterSpacing: 0.5 },
+  text: { color: '#fff', fontSize: 16, fontWeight: '800', },
   card: { marginTop: 10, borderWidth: 1, borderRadius: 12, padding: 12 },
   cardTitle: { fontSize: 14, fontWeight: '800', marginBottom: 2 },
   cardBody: { fontSize: 12.5, lineHeight: 18 },

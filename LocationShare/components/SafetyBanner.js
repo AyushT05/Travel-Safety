@@ -1,16 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import {
-  View,
-  Text,
-  TouchableOpacity,
-  StyleSheet,
-  TextInput,
-  ActivityIndicator,
-  Alert,
-  Platform,
-  LayoutAnimation,
-  UIManager,
-} from 'react-native';
+import { View, TouchableOpacity, StyleSheet, ActivityIndicator, Alert, Platform, LayoutAnimation, UIManager } from 'react-native';
+import { Text, TextInput } from './Text';
 import { Ionicons, Feather } from '@expo/vector-icons';
 import NetInfo from '@react-native-community/netinfo';
 import { supabase } from '../lib/supabase';
@@ -101,11 +91,15 @@ export default function SafetyBanner({ lat, lon, user, travelCardId, isSharing }
           is_connected: networkState.isConnected,
           is_internet_reachable: networkState.isInternetReachable,
           type: networkState.type,
+          cellular_generation: networkState.details?.cellularGeneration ?? null,
+          signal_strength: networkState.details?.strength ?? null,
         } : undefined
       );
       if (result && !result.error) {
         setAssessment(result);
       }
+      // persisted === false: the server computed it but the dashboard did not receive it (see the server log).
+      if (result?.persisted === false) console.warn('Safety assessment was not saved:', result.persist_detail);
     } catch (err) {
       console.warn('Safety assessment request failed:', err);
     } finally {
@@ -402,7 +396,7 @@ export default function SafetyBanner({ lat, lon, user, travelCardId, isSharing }
               <TextInput
                 style={s.textInput}
                 placeholder="Add any helpful details for authorities or fellow travelers..."
-                placeholderTextColor="#9E9484"
+                placeholderTextColor="#6F8378"
                 value={reportDescription}
                 onChangeText={setReportDescription}
                 multiline
@@ -513,7 +507,7 @@ const s = StyleSheet.create({
     paddingTop: 8,
     backgroundColor: '#FFFFFF',
     borderTopWidth: 1,
-    borderTopColor: '#F7F5F0',
+    borderTopColor: '#F2F7F3',
   },
 
   sectionHeader: {
@@ -525,15 +519,15 @@ const s = StyleSheet.create({
   sectionTitle: {
     fontSize: 13,
     fontWeight: '700',
-    color: '#1A1A1A',
+    color: '#0F2118',
   },
   riskCountBadge: {
-    backgroundColor: '#F7F5F0',
+    backgroundColor: '#F2F7F3',
     borderRadius: 10,
     paddingHorizontal: 8,
     paddingVertical: 2,
     borderWidth: 1,
-    borderColor: '#EAE4D9',
+    borderColor: '#DAE6DD',
   },
   riskCountText: {
     fontSize: 11,
@@ -549,7 +543,7 @@ const s = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: 8,
     borderBottomWidth: 1,
-    borderBottomColor: '#F7F5F0',
+    borderBottomColor: '#F2F7F3',
     gap: 10,
   },
   riskIconWrap: {
@@ -565,11 +559,11 @@ const s = StyleSheet.create({
   riskLabel: {
     fontSize: 12,
     fontWeight: '600',
-    color: '#1A1A1A',
+    color: '#0F2118',
   },
   riskDist: {
     fontSize: 10,
-    color: '#9E9484',
+    color: '#6F8378',
     marginTop: 2,
   },
   severityBadge: {
@@ -581,7 +575,7 @@ const s = StyleSheet.create({
   severityText: {
     fontSize: 9,
     fontWeight: '700',
-    letterSpacing: 0.3,
+    
   },
 
   noRisksRow: {
@@ -604,9 +598,9 @@ const s = StyleSheet.create({
     marginTop: 10,
     paddingVertical: 8,
     borderRadius: 10,
-    backgroundColor: '#F7F5F0',
+    backgroundColor: '#F2F7F3',
     borderWidth: 1,
-    borderColor: '#EAE4D9',
+    borderColor: '#DAE6DD',
   },
   reportToggleText: {
     fontSize: 12,
@@ -620,12 +614,12 @@ const s = StyleSheet.create({
     backgroundColor: '#FAF9F6',
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: '#EAE4D9',
+    borderColor: '#DAE6DD',
   },
   reportFormTitle: {
     fontSize: 13,
     fontWeight: '700',
-    color: '#1A1A1A',
+    color: '#0F2118',
   },
   reportFormSubtitle: {
     fontSize: 11,
@@ -646,7 +640,7 @@ const s = StyleSheet.create({
     gap: 5,
     backgroundColor: '#FFFFFF',
     borderWidth: 1,
-    borderColor: '#EAE4D9',
+    borderColor: '#DAE6DD',
     borderRadius: 14,
     paddingHorizontal: 10,
     paddingVertical: 5,
@@ -673,12 +667,12 @@ const s = StyleSheet.create({
   textInput: {
     backgroundColor: '#FFFFFF',
     borderWidth: 1,
-    borderColor: '#EAE4D9',
+    borderColor: '#DAE6DD',
     borderRadius: 8,
     paddingHorizontal: 10,
     paddingVertical: 8,
     fontSize: 12,
-    color: '#1A1A1A',
+    color: '#0F2118',
     minHeight: 60,
     textAlignVertical: 'top',
     marginBottom: 10,

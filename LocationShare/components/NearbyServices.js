@@ -1,8 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import {
-  View, Text, TouchableOpacity, StyleSheet, ActivityIndicator,
-  Linking, Platform, LayoutAnimation, UIManager,
-} from 'react-native';
+import { View, TouchableOpacity, StyleSheet, ActivityIndicator, Linking, Platform, LayoutAnimation, UIManager } from 'react-native';
+import { Text } from './Text';
 import { Ionicons, Feather } from '@expo/vector-icons';
 import { fetchNearbyServices } from '../lib/nearbyServices';
 
@@ -107,7 +105,7 @@ export default function NearbyServices({ lat, lon }) {
               <Text style={s.badgeText}>{totalCount}</Text>
             </View>
           )}
-          <Feather name={expanded ? 'chevron-up' : 'chevron-down'} size={18} color="#9E9484" />
+          <Feather name={expanded ? 'chevron-up' : 'chevron-down'} size={18} color="#6F8378" />
         </View>
       </TouchableOpacity>
 
@@ -142,7 +140,7 @@ export default function NearbyServices({ lat, lon }) {
                   <View style={s.catCount}>
                     <Text style={s.catCountText}>{group.places.length}</Text>
                   </View>
-                  <Feather name={isOpen ? 'chevron-up' : 'chevron-down'} size={14} color="#9E9484" />
+                  <Feather name={isOpen ? 'chevron-up' : 'chevron-down'} size={14} color="#6F8378" />
                 </TouchableOpacity>
 
                 {group.places.length === 0 && (
@@ -196,7 +194,7 @@ export default function NearbyServices({ lat, lon }) {
 const s = StyleSheet.create({
   card: {
     backgroundColor: '#fff', borderRadius: 16, marginBottom: 12,
-    borderWidth: 1, borderColor: '#EAE4D9', overflow: 'hidden',
+    borderWidth: 1, borderColor: '#DAE6DD', overflow: 'hidden',
   },
   header: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
@@ -204,17 +202,17 @@ const s = StyleSheet.create({
   },
   headerLeft:  { flexDirection: 'row', alignItems: 'center', gap: 8 },
   headerRight: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  headerTitle: { fontSize: 14, fontWeight: '700', color: '#1A1A1A' },
+  headerTitle: { fontSize: 14, fontWeight: '700', color: '#0F2118' },
 
   badge: {
-    backgroundColor: '#D1FAE5', borderRadius: 10, paddingHorizontal: 8, paddingVertical: 2,
+    backgroundColor: '#CBE7D2', borderRadius: 10, paddingHorizontal: 8, paddingVertical: 2,
   },
   badgeText: { fontSize: 11, fontWeight: '700', color: '#1B4332' },
 
   body: { paddingHorizontal: 16, paddingBottom: 16 },
 
   loadingRow: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 12 },
-  loadingText: { fontSize: 13, color: '#9E9484' },
+  loadingText: { fontSize: 13, color: '#6F8378' },
 
   errorRow: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 8 },
   errorText: { fontSize: 13, color: '#DC2626', flex: 1 },
@@ -223,27 +221,27 @@ const s = StyleSheet.create({
   catSection: { marginTop: 8 },
   catHeader: {
     flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 8,
-    borderBottomWidth: 1, borderBottomColor: '#F7F5F0',
+    borderBottomWidth: 1, borderBottomColor: '#F2F7F3',
   },
-  catLabel: { fontSize: 13, fontWeight: '600', color: '#1A1A1A', flex: 1 },
+  catLabel: { fontSize: 13, fontWeight: '600', color: '#0F2118', flex: 1 },
   catCount: {
-    backgroundColor: '#F7F5F0', borderRadius: 8, paddingHorizontal: 6, paddingVertical: 1,
+    backgroundColor: '#F2F7F3', borderRadius: 8, paddingHorizontal: 6, paddingVertical: 1,
   },
-  catCountText: { fontSize: 10, fontWeight: '700', color: '#9E9484' },
+  catCountText: { fontSize: 10, fontWeight: '700', color: '#6F8378' },
 
-  emptyText: { fontSize: 12, color: '#C4BAA8', fontStyle: 'italic', paddingVertical: 6, paddingLeft: 24 },
+  emptyText: { fontSize: 12, color: '#A7B8AD', fontStyle: 'italic', paddingVertical: 6, paddingLeft: 24 },
 
   placeRow: {
     flexDirection: 'row', alignItems: 'center', paddingVertical: 10,
-    paddingLeft: 24, borderBottomWidth: 1, borderBottomColor: '#F7F5F0',
+    paddingLeft: 24, borderBottomWidth: 1, borderBottomColor: '#F2F7F3',
   },
   placeInfo: { flex: 1, marginRight: 8 },
-  placeName: { fontSize: 13, fontWeight: '600', color: '#1A1A1A' },
-  placeDist: { fontSize: 11, color: '#9E9484', marginTop: 2 },
+  placeName: { fontSize: 13, fontWeight: '600', color: '#0F2118' },
+  placeDist: { fontSize: 11, color: '#6F8378', marginTop: 2 },
   navBtn: {
     width: 32, height: 32, borderRadius: 16, backgroundColor: '#F0FDF4',
     alignItems: 'center', justifyContent: 'center',
-    borderWidth: 1, borderColor: '#D1FAE5',
+    borderWidth: 1, borderColor: '#CBE7D2',
   },
 
   showMore: { fontSize: 12, color: '#52796F', fontWeight: '600', paddingVertical: 6, paddingLeft: 24 },
@@ -251,7 +249,7 @@ const s = StyleSheet.create({
   refreshBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
     gap: 6, marginTop: 12, paddingVertical: 10, borderRadius: 12,
-    backgroundColor: '#F7F5F0',
+    backgroundColor: '#F2F7F3',
   },
   refreshText: { fontSize: 13, fontWeight: '600', color: '#52796F' },
 });

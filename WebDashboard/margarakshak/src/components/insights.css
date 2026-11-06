@@ -1,0 +1,19 @@
+.ti-card { margin-top: 8px; border: 1px solid var(--border); border-left-width: 4px; border-radius: 10px; background: var(--surface); font-size: 12px; max-width: 520px; }
+.ti-normal { border-left-color: #16a34a; } .ti-watch { border-left-color: #d97706; } .ti-alert { border-left-color: #dc2626; background: #fef2f2; }
+.ti-top { display: flex; align-items: center; gap: 8px; padding: 8px 10px; cursor: pointer; }
+.ti-pill { font-size: 10px; font-weight: 700; text-transform: none; padding: 2px 7px; border-radius: 999px; color: #fff; background: #16a34a; white-space: nowrap; }
+.ti-watch .ti-pill { background: #d97706; } .ti-alert .ti-pill { background: #dc2626; }
+.ti-main { flex: 1; min-width: 0; } .ti-headline { font-weight: 600; color: var(--text, #111); line-height: 1.3; }
+.ti-sub, .ti-time { color: var(--muted); font-size: 11px; } .ti-chev { color: var(--muted); }
+.ti-chips { display: flex; flex-wrap: wrap; gap: 4px; padding: 0 10px 8px; }
+.ti-chip { font-size: 10.5px; padding: 2px 7px; border-radius: 6px; background: #e5e7eb; color: #374151; }
+.ti-chip.sev-watch { background: #fef3c7; color: #92400e; } .ti-chip.sev-alert { background: #fee2e2; color: #991b1b; font-weight: 600; }
+.ti-body { padding: 0 12px 10px; border-top: 1px solid var(--border); } .ti-body p { margin: 8px 0; line-height: 1.45; }
+.ti-body h5 { margin: 10px 0 3px; font-size: 11px; text-transform: none; color: var(--muted); } .ti-body ul { margin: 0; padding-left: 16px; }
+.ti-event { margin: 6px 0; padding: 6px 8px; background: rgba(0,0,0,.03); border-radius: 6px; } .ti-expl { color: var(--muted); font-style: italic; margin-top: 2px; }
+.ti-user { padding: 6px 8px; background: #eff6ff; border-radius: 6px; } .ti-debug { margin-top: 6px; font-size: 10px; color: #9ca3af; }
+.ti-disclaimer { margin-top: 8px; font-size: 10.5px; color: var(--muted); }
+.minimized-travel-card .mtc-dot { width: 8px; height: 8px; border-radius: 50%; background: #9ca3af; }
+.minimized-travel-card .mtc-dot.live { background: #16a34a; } .minimized-travel-card .mtc-dot.delayed { background: #d97706; } .minimized-travel-card .mtc-dot.stale { background: #ef4444; }
+.minimized-travel-card.ins-alert { border-color: #dc2626; } .minimized-travel-card.ins-watch { border-color: #d97706; }
+.mtc-close { border: 0; background: transparent; color: var(--muted); font-size: 14px; cursor: pointer; padding: 0 0 0 4px; }

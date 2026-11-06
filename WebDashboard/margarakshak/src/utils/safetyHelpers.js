@@ -37,6 +37,14 @@ export const RISK_FACTOR_LABELS = {
   no_road_access: "Limited road access",
   flood_zone: "Flood-prone area",
   restricted_area: "Restricted area",
+  weather: "Weather conditions",
+  connectivity: "Network / signal",
+  night: "Night-time",
+  terrain: "Remote terrain",
+  air_quality: "Air quality",
+  incident_history: "Past incidents nearby",
+  landslide_zone: "Landslide-prone area",
+  combined: "Combined risk",
 };
 
 export function getRiskFactorLabel(type) {

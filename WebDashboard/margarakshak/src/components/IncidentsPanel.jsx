@@ -17,8 +17,105 @@ const ago = (iso) => {
   return m < 1 ? "just now" : m < 60 ? `${m} min ago` : `${Math.floor(m / 60)} h ${m % 60} min ago`;
 };
 
+
+const SOS_SOURCE = {
+  app: "Manual SOS from the app",
+  sms: "Manual SOS sent by SMS (phone had no data connection)",
+  manual: "Manual SOS",
+  system: "Automatic alert",
+  auto: "Automatic alert: detected by the safety agent (no button pressed)",
+};
+const SERVICE_LABEL = { police: "Police", hospital: "Hospital", fire_station: "Fire station", clinic: "Clinic", pharmacy: "Pharmacy" };
+
+export const isSos = (inc) => inc.kind === "panic" || (inc.kind === "trip_risk" && (inc.level === "high" || inc.level === "critical"));
+
+// What the console needs in the first ten seconds of an SOS: where, what it is likely about, who to call.
+function SosSummary({ inc, card, onFocus }) {
+  const b = inc.brief || {};
+  const lk = b.last_known;
+  const manual = inc.kind === "panic";
+  const sourceKey = manual ? b.sos_source || "app" : "auto";
+  const contacts = (b.contacts_shared && b.contacts_shared.length ? b.contacts_shared : [
+    ...(card?.mobile ? [{ role: "traveller", name: card.full_name, phone: card.mobile }] : []),
+    ...(card?.emergency_contacts || []).filter((c) => c?.phone).map((c) => ({ role: "emergency_contact", name: c.name, relation: c.relation, phone: c.phone })),
+  ]);
+  const issues = b.likely_issues || [];
+  const services = b.nearby_services || [];
+  const numbers = b.emergency_numbers || [];
+  const cond = b.conditions || {};
+  return (
+    <div className={`sos-box ${manual ? "manual" : "auto"}`}>
+      <div className="sos-kicker">{manual ? "SOS" : "Automated alert"} · {SOS_SOURCE[sourceKey] || SOS_SOURCE.app}</div>
+
+      <h4>Where it came from</h4>
+      {lk ? (
+        <p>
+          <strong>{lk.location_name || "Place name not available yet"}</strong>
+          <br />
+          {lk.lat.toFixed(5)}, {lk.lon.toFixed(5)} · fix {ago(lk.at)}
+          {lk.accuracy_m != null && ` · accuracy ${Math.round(lk.accuracy_m)} m`}
+          {lk.source === "alert" && " · position sent with the SOS"}
+          {lk.age_s > 300 && <span className="inc-badge warn">last known position is {Math.round(lk.age_s / 60)} min old</span>}
+          {" "}
+          {inc.user_id && <button className="inc-link" onClick={() => onFocus(inc.travel_card_id || inc.user_id)}>Show on map</button>}
+        </p>
+      ) : <p>No position was received with this alert.</p>}
+
+      <h4>What could be the issue (from this location)</h4>
+      {issues.length ? (
+        <ul className="sos-issues">
+          {issues.map((i) => (
+            <li key={i.id}>
+              <strong>{i.issue.replace(/^./, (c) => c.toUpperCase())}</strong>
+              {i.confidence === "plausible" && <span className="inc-badge">more likely</span>}
+              <ul>{i.why.map((w, k) => <li key={k}>{w}</li>)}</ul>
+            </li>
+          ))}
+        </ul>
+      ) : <p className="inc-sub">{b.likely_issues ? "Nothing about this location points to a specific cause. Ask the traveller." : "Working out the likely causes from the location…"}</p>}
+      {(cond.night || cond.weather?.weather_code != null) && (
+        <p className="inc-sub">
+          {cond.night ? "After dark. " : ""}
+          {cond.weather && cond.weather.apparent_temperature != null ? `Feels like ${Math.round(cond.weather.apparent_temperature)}°C` : ""}
+          {cond.weather && cond.weather.precipitation ? `, rain ${cond.weather.precipitation} mm/h` : ""}
+          {cond.weather && cond.weather.wind_gusts_10m ? `, gusts ${Math.round(cond.weather.wind_gusts_10m)} km/h` : ""}
+        </p>
+      )}
+
+      <h4>Contact numbers shared by the traveller</h4>
+      {contacts.length ? (
+        <ul>
+          {contacts.map((c, i) => (
+            <li key={i}>
+              {c.role === "traveller" ? "Traveller" : c.role === "companion" ? "Companion" : "Emergency contact"}
+              {c.name ? ` · ${c.name}` : ""}{c.relation ? ` (${c.relation})` : ""}: <a className="inc-link" href={`tel:${c.phone}`}>{c.phone}</a>
+            </li>
+          ))}
+        </ul>
+      ) : <p className="inc-sub">The traveller did not share any contact numbers.</p>}
+
+      <h4>Nearby services</h4>
+      {services.length ? (
+        <ul>
+          {services.map((s, i) => (
+            <li key={i}>
+              {SERVICE_LABEL[s.category] || s.category}: {s.name || "unnamed"} · {s.distance_km} km
+              {s.phone ? <> · <a className="inc-link" href={`tel:${s.phone}`}>{s.phone}</a></> : <span className="inc-sub"> · no number listed</span>}
+            </li>
+          ))}
+        </ul>
+      ) : <p className="inc-sub">{b.nearby_services ? "No services found within 8 km in the map data." : "Looking up nearby services…"}</p>}
+      {numbers.length > 0 && (
+        <p className="sos-numbers">
+          {numbers.map((n) => (<a key={n.number} className="inc-link" href={`tel:${n.number}`} title={n.label}>{n.label.split(" (")[0]} {n.number}</a>))}
+        </p>
+      )}
+    </div>
+  );
+}
+
 function IncidentCard({ inc, card, onAct, onFocus }) {
-  const [open, setOpen] = useState(inc.level === "critical");
+  const [open, setOpen] = useState(inc.level === "critical" || inc.level === "high");
   const [busy, setBusy] = useState(false);
   const [reason, setReason] = useState("");
   const [error, setError] = useState(null);
@@ -58,6 +155,7 @@ function IncidentCard({ inc, card, onAct, onFocus }) {
 
       {open && (
         <div className="inc-body">
+          {isSos(inc) && <SosSummary inc={inc} card={card} onFocus={onFocus} />}
           {brief ? (
             <>
               <h4>
@@ -76,7 +174,7 @@ function IncidentCard({ inc, card, onAct, onFocus }) {
                 ))}
               </ul>
 
-              {brief.last_known && (
+              {!isSos(inc) && brief.last_known && (
                 <>
                   <h4>Last known position</h4>
                   <p>
@@ -97,7 +195,7 @@ function IncidentCard({ inc, card, onAct, onFocus }) {
                 </>
               )}
 
-              {(brief.nearby_services || []).length > 0 && (
+              {!isSos(inc) && (brief.nearby_services || []).length > 0 && (
                 <>
                   <h4>Nearest services</h4>
                   <ul>
@@ -201,6 +299,12 @@ export default function IncidentsPanel({ incidents, travelCards = [], onAct, onF
           <span>{visible.length} shown{hidden > 0 && ` · ${hidden} low priority hidden`}</span>
           <label><input type="checkbox" checked={showLow} onChange={(e) => setShowLow(e.target.checked)} /> Show low priority</label>
         </div>
+        {incidents.some(isSos) && (
+          <div className="sos-strip">
+            <strong>{incidents.filter((i) => i.kind === "panic").length}</strong> manual SOS ·{" "}
+            <strong>{incidents.filter((i) => i.kind !== "panic" && isSos(i)).length}</strong> automated alert(s) open
+          </div>
+        )}
         <div className="inc-note">
           Incidents combine several signals. They are prompts to review, never a finding that someone is missing or in danger.
         </div>

@@ -1,6 +1,7 @@
 import React from "react";
 import { render, act } from "@testing-library/react";
-import { beforeAll, describe, expect, test } from "vitest";
+import { beforeAll, describe, expect, test, vi } from "vitest";
+vi.mock("../src/lib/supabase", () => ({ supabase: { from: () => { const b = {}; ["select","eq","gte","lte","order","limit","is"].forEach(k => b[k] = () => b); b.then = (r) => r({ data: [], error: null }); return b; } } }));
 import MapView from "../src/components/MapView";
 
 // jsdom has no canvas; leaflet.heat only needs a context that accepts drawing calls.

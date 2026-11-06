@@ -68,3 +68,28 @@ test("panel hides low priority by default, shows approval badge and tel links fr
   fireEvent.click(screen.getByLabelText ? container.querySelector('input[type="checkbox"]') : null);
   expect(container.querySelectorAll(".inc-card").length).toBe(2);
 });
+
+test("SOS incident shows the place name, location-based causes, shared contacts, services with numbers and 112", () => {
+  const brief = { source: "template", headline: "SOS: panic button pressed", summary: "s", timeline: [], steps: [], sos_source: "sms",
+    last_known: { lat: 12.3, lon: 76.7, at: new Date().toISOString(), age_s: 30, accuracy_m: 9, location_name: "NH 275, Mandya", source: "alert" },
+    likely_issues: [{ id: "vehicle_breakdown_or_collision", issue: "vehicle breakdown or collision", confidence: "plausible", why: ["SOS came from a highway (NH 275, Mandya)"] }],
+    contacts_shared: [{ role: "traveller", name: "Asha", phone: "+919812345670" }, { role: "emergency_contact", name: "Ravi", relation: "brother", phone: "+919876543210" }],
+    nearby_services: [{ category: "police", name: "Mandya PS", distance_km: 1.2, phone: "0823-2222" }, { category: "hospital", name: "Govt Hospital", distance_km: 2.4, phone: null }],
+    emergency_numbers: [{ label: "National emergency (police, fire, ambulance)", number: "112" }] };
+  render(<IncidentsPanel incidents={[inc("p", "critical", { kind: "panic", brief })]} travelCards={[]} onAct={() => {}} onFocus={() => {}} onClose={() => {}} />);
+  expect(screen.getByText("NH 275, Mandya")).toBeTruthy();
+  expect(screen.getByText(/Manual SOS sent by SMS/)).toBeTruthy();
+  expect(screen.getByText(/Vehicle breakdown or collision/)).toBeTruthy();
+  expect(screen.getByText(/SOS came from a highway/)).toBeTruthy();
+  expect(screen.getByText("+919876543210").getAttribute("href")).toBe("tel:+919876543210");
+  expect(screen.getByText("0823-2222").getAttribute("href")).toBe("tel:0823-2222");
+  expect(screen.getByText(/no number listed/)).toBeTruthy();
+  expect(screen.getByTitle("National emergency (police, fire, ambulance)").getAttribute("href")).toBe("tel:112");
+});
+
+test("an automated high-priority incident is summarised as an automated alert, not as a button press", () => {
+  render(<IncidentsPanel incidents={[inc("a", "high", { brief: { source: "template", headline: "h", summary: "s", timeline: [], steps: [], likely_issues: [] } })]}
+    travelCards={[]} onAct={() => {}} onFocus={() => {}} onClose={() => {}} />);
+  expect(screen.getByText(/Automated alert/)).toBeTruthy();
+  expect(screen.getByText(/Nothing about this location points to a specific cause/)).toBeTruthy();
+});

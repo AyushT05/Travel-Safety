@@ -1,5 +1,6 @@
 import { cardForDevice } from "../utils/helpers";
 import SafetyBadge from "./SafetyBadge";
+import TripInsightCard from "./TripInsightCard";
 
 const RISK_LEVELS = [
   { max: 0.05, label: "Critical", color: "#dc2626" },
@@ -46,6 +47,7 @@ export default function DevicePanel({
   activity,
   onOpenNearby,
   safetyAssessment,
+  insight,
   onOpenSafety,
   onToggleLayers,
   mapLayersOpen,
@@ -136,6 +138,7 @@ export default function DevicePanel({
           </div>
         </div>
       </div>
+      <TripInsightCard insight={insight} />
     </div>
   );
 }

@@ -1,4 +1,3 @@
-@import url('https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700;9..40,800&display=swap');
 @import './auth.css';
 
 /* ── Reset ─────────────────────────────── */
@@ -7,7 +6,7 @@
 html, body, #root {
   height: 100%;
   overflow: hidden;
-  font-family: 'DM Sans', -apple-system, sans-serif;
+  font-family: var(--font-body, 'Figtree'), -apple-system, sans-serif;
 }
 
 #root { display: flex; flex-direction: column; }
@@ -16,15 +15,15 @@ html, body, #root {
 :root {
   --sidebar-w:   320px;
   --header-h:    56px;
-  --bg:          #F7F5F0;
+  --bg:          #F2F7F3;
   --surface:     #ffffff;
-  --border:      #EAE4D9;
-  --border-soft: #F0EBE3;
-  --text:        #1A1A1A;
-  --muted:       #9E9484;
+  --border:      #DAE6DD;
+  --border-soft: #E7F0E9;
+  --text:        #0F2118;
+  --muted:       #6F8378;
   --accent:      #1B4332;
-  --accent-light:#ECFDF5;
-  --accent-mid:  #D1FAE5;
+  --accent-light:#E8F5EB;
+  --accent-mid:  #CBE7D2;
   --green:       #22c55e;
   --red:         #ef4444;
   --amber:       #f59e0b;
@@ -75,7 +74,7 @@ header {
   font-weight: 800;
   color: var(--accent);
   letter-spacing: -0.4px;
-  font-family: 'Instrument Serif', serif;
+  font-family: inherit;
   font-style: italic;
 }
 
@@ -129,8 +128,7 @@ header {
   border-radius: 20px;
   font-size: 11px;
   font-weight: 700;
-  letter-spacing: 0.3px;
-}
+  }
 
 .header-role-badge.admin { background: #fef3c7; color: #92400e; }
 .header-role-badge.user  { background: var(--accent-light); color: var(--accent); }
@@ -204,9 +202,8 @@ aside {
   font-size: 11px;
   font-weight: 700;
   color: var(--muted);
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-}
+  text-transform: none;
+  }
 
 .sidebar-count {
   background: var(--accent-light);
@@ -240,7 +237,7 @@ aside {
   color: var(--text);
   background: var(--bg);
   outline: none;
-  font-family: 'DM Sans', sans-serif;
+  font-family: inherit;
   transition: border-color 0.15s;
 }
 
@@ -275,7 +272,7 @@ aside {
   justify-content: center;
   gap: 6px;
   transition: all 0.15s;
-  font-family: 'DM Sans', sans-serif;
+  font-family: inherit;
 }
 
 .sidebar-manage-btn:hover {
@@ -304,10 +301,10 @@ aside {
 .travel-card-directory-item:hover, .travel-card-directory-item.selected { background: #f1f8f3; }
 .travel-card-directory-icon { color: var(--muted); }
 .travel-card-directory-dates { flex: 1; }
-.travel-card-directory-status { font-size: 9px; font-weight: 700; text-transform: uppercase; }
+.travel-card-directory-status { font-size: 9px; font-weight: 700; text-transform: none; }
 .travel-card-directory-status.active { color: #15803d; }.travel-card-directory-status.upcoming { color: #a16207; }.travel-card-directory-status.completed { color: var(--muted); }
 .unregistered-feeds { margin-top: 14px; }
-.unregistered-feeds-title { padding: 5px 7px; color: var(--muted); font-size: 10px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; }
+.unregistered-feeds-title { padding: 5px 7px; color: var(--muted); font-size: 10px; font-weight: 700; text-transform: none; }
 
 /* ── Device Card ───────────────────────── */
 .device-card {
@@ -342,8 +339,7 @@ aside {
   font-weight: 700;
   color: white;
   flex-shrink: 0;
-  letter-spacing: 0.5px;
-}
+  }
 
 .dc-info { flex: 1; min-width: 0; }
 
@@ -359,7 +355,7 @@ aside {
 .dc-id-sub {
   font-size: 10px;
   color: var(--muted);
-  font-family: monospace;
+  font-family: inherit; font-variant-numeric: tabular-nums;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -390,7 +386,7 @@ aside {
   margin-top: 8px;
   font-size: 11px;
   color: var(--muted);
-  font-family: monospace;
+  font-family: inherit; font-variant-numeric: tabular-nums;
   padding-top: 8px;
   border-top: 1px solid var(--border-soft);
 }
@@ -460,9 +456,8 @@ aside {
   font-size: 12px;
   font-weight: 700;
   color: var(--accent);
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-}
+  text-transform: none;
+  }
 
 .travel-detail-close {
   width: 26px;
@@ -501,8 +496,7 @@ aside {
   font-weight: 700;
   padding: 3px 8px;
   border-radius: 20px;
-  letter-spacing: 0.3px;
-}
+  }
 
 .td-status.status-active   { background: var(--accent-light); color: var(--accent); }
 .td-status.status-upcoming { background: #eff6ff; color: #1d4ed8; }
@@ -526,8 +520,7 @@ aside {
   font-size: 10px;
   font-weight: 700;
   color: var(--muted);
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
+  text-transform: none;
   margin-bottom: 6px;
 }
 
@@ -558,7 +551,7 @@ aside {
 .td-person-phone {
   font-size: 12px;
   color: var(--muted);
-  font-family: monospace;
+  font-family: inherit; font-variant-numeric: tabular-nums;
 }
 
 /* ── Map area ──────────────────────────── */
@@ -618,7 +611,7 @@ aside {
   box-shadow: 0 2px 8px rgba(0,0,0,0.06);
   white-space: nowrap;
   transition: all 0.15s;
-  font-family: 'DM Sans', sans-serif;
+  font-family: inherit;
 }
 
 .ctrl-btn:hover { background: var(--bg); border-color: var(--accent); }
@@ -667,7 +660,7 @@ aside {
   gap: 5px;
   font-size: 12px;
   color: var(--muted);
-  font-family: monospace;
+  font-family: inherit; font-variant-numeric: tabular-nums;
   margin-bottom: 4px;
 }
 
@@ -690,7 +683,7 @@ aside {
 .panel-actions { display: flex; align-items: center; gap: 8px; margin-top: 8px; justify-content: flex-end; }
 
 .panel-metric { text-align: right; }
-.panel-metric-label { font-size: 10px; color: var(--muted); font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 2px; }
+.panel-metric-label { font-size: 10px; color: var(--muted); font-weight: 600; text-transform: none; margin-bottom: 2px; }
 .panel-metric-value { font-size: 20px; font-weight: 800; color: var(--text); letter-spacing: -0.5px; }
 .panel-metric-unit { font-size: 11px; color: var(--muted); font-weight: 500; }
 
@@ -711,9 +704,8 @@ aside {
   font-weight: 700;
   color: var(--accent);
   margin-bottom: 4px;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-}
+  text-transform: none;
+  }
 
 .my-id-desc { font-size: 11px; color: #4a6255; margin-bottom: 10px; line-height: 1.4; }
 
@@ -729,7 +721,7 @@ aside {
 
 .my-id-value {
   flex: 1;
-  font-family: monospace;
+  font-family: inherit; font-variant-numeric: tabular-nums;
   font-size: 11px;
   color: #374151;
   overflow: hidden;
@@ -748,10 +740,10 @@ aside {
   font-weight: 700;
   cursor: pointer;
   transition: background 0.15s;
-  font-family: 'DM Sans', sans-serif;
+  font-family: inherit;
 }
 
-.my-id-copy:hover { background: #2d6a4f; }
+.my-id-copy:hover { background: #067F38; }
 
 /* ── UID overlay / panel ───────────────── */
 .uid-overlay {
@@ -826,7 +818,7 @@ aside {
   font-size: 13px;
   color: var(--text);
   outline: none;
-  font-family: monospace;
+  font-family: inherit; font-variant-numeric: tabular-nums;
   background: var(--bg);
   transition: border-color 0.15s;
 }
@@ -844,10 +836,10 @@ aside {
   font-weight: 700;
   cursor: pointer;
   transition: background 0.15s;
-  font-family: 'DM Sans', sans-serif;
+  font-family: inherit;
 }
 
-.uid-add-btn:hover { background: #2d6a4f; }
+.uid-add-btn:hover { background: #067F38; }
 
 .uid-error { font-size: 12px; color: #ef4444; margin-bottom: 10px; }
 
@@ -888,7 +880,7 @@ aside {
 .uid-dot.live    { background: var(--green); box-shadow: 0 0 0 2px rgba(34,197,94,0.2); animation: pulse 2s infinite; }
 .uid-dot.offline { background: #d1d5db; }
 
-.uid-id { font-size: 12px; font-family: monospace; color: var(--text); font-weight: 500; }
+.uid-id { font-size: 12px; font-family: inherit; font-variant-numeric: tabular-nums; color: var(--text); font-weight: 500; }
 
 .uid-badge { font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 20px; }
 .uid-badge.found   { background: #dcfce7; color: #16a34a; }
@@ -935,9 +927,8 @@ aside {
   color: #fff;
   font-size: 12px;
   font-weight: 800;
-  font-family: 'DM Sans', sans-serif;
-  letter-spacing: 0.3px;
-}
+  font-family: inherit;
+  }
 
 .live-marker-tail {
   width: 3px;
@@ -1017,14 +1008,14 @@ aside {
   font-weight: 600;
   cursor: pointer;
   transition: all 0.15s;
-  font-family: 'DM Sans', sans-serif;
+  font-family: inherit;
   white-space: nowrap;
 }
 .map-layer-trigger-btn {
   display: flex; align-items: center; gap: 6px; padding: 8px 14px;
   background: var(--surface); border: 1.5px solid var(--border); border-radius: 10px;
   color: var(--accent); font-size: 13px; font-weight: 600; cursor: pointer;
-  font-family: 'DM Sans', sans-serif; white-space: nowrap;
+  font-family: inherit; white-space: nowrap;
 }
 .map-layer-trigger-btn.active, .map-layer-trigger-btn:hover { background: var(--accent-light); border-color: var(--accent-mid); }
 
@@ -1049,7 +1040,7 @@ aside {
   max-width: 92vw;
   height: 100%;
   background: #fff;
-  border-left: 1px solid #eae4d9;
+  border-left: 1px solid #DAE6DD;
   display: flex;
   flex-direction: column;
   box-shadow: -8px 0 24px rgba(0, 0, 0, 0.08);
@@ -1060,7 +1051,7 @@ aside {
   align-items: center;
   justify-content: space-between;
   padding: 18px 20px;
-  border-bottom: 1px solid #f0ebe3;
+  border-bottom: 1px solid #E7F0E9;
 }
 
 .safety-panel-title {
@@ -1073,8 +1064,8 @@ aside {
   width: 30px;
   height: 30px;
   border-radius: 15px;
-  border: 1px solid #eae4d9;
-  background: #fafaf8;
+  border: 1px solid #DAE6DD;
+  background: #F8FBF8;
   color: #6b7c74;
   display: flex;
   align-items: center;
@@ -1105,10 +1096,9 @@ aside {
 .safety-score-label {
   font-size: 11px;
   font-weight: 600;
-  color: #9e9484;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-}
+  color: #6F8378;
+  text-transform: none;
+  }
 
 .safety-score-value {
   font-size: 20px;
@@ -1118,7 +1108,7 @@ aside {
 
 .safety-score-bar {
   height: 6px;
-  background: #f0ebe3;
+  background: #E7F0E9;
   border-radius: 3px;
   margin-top: 8px;
   overflow: hidden;
@@ -1151,9 +1141,8 @@ aside {
 .safety-section-title {
   font-size: 10px;
   font-weight: 700;
-  color: #9e9484;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
+  color: #6F8378;
+  text-transform: none;
   margin-bottom: 8px;
 }
 
@@ -1163,9 +1152,9 @@ aside {
   gap: 10px;
   padding: 10px 12px;
   border-radius: 10px;
-  border: 1px solid #eae4d9;
+  border: 1px solid #DAE6DD;
   margin-bottom: 6px;
-  background: #fafaf8;
+  background: #F8FBF8;
 }
 
 .safety-factor.severity-high   { border-left: 3px solid #dc2626; }
@@ -1191,19 +1180,19 @@ aside {
 .safety-factor-label {
   font-size: 13px;
   font-weight: 600;
-  color: #1a1a1a;
+  color: #0F2118;
 }
 
 .safety-factor-detail {
   font-size: 11px;
-  color: #9e9484;
+  color: #6F8378;
   margin-top: 2px;
 }
 
 .safety-factor-dist {
   font-size: 12px;
-  color: #9e9484;
-  font-family: monospace;
+  color: #6F8378;
+  font-family: inherit; font-variant-numeric: tabular-nums;
   flex-shrink: 0;
 }
 
@@ -1216,17 +1205,16 @@ aside {
 .safety-emergency-item {
   padding: 12px;
   border-radius: 10px;
-  border: 1px solid #eae4d9;
+  border: 1px solid #DAE6DD;
   text-align: center;
-  background: #fafaf8;
+  background: #F8FBF8;
 }
 
 .safety-emergency-label {
   font-size: 10px;
   font-weight: 700;
-  color: #9e9484;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
+  color: #6F8378;
+  text-transform: none;
   margin-bottom: 4px;
 }
 
@@ -1248,28 +1236,27 @@ aside {
   font-size: 11px;
   font-weight: 700;
   color: #dc2626;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
+  text-transform: none;
   margin-bottom: 2px;
 }
 
 .safety-zone-desc {
   font-size: 13px;
-  color: #1a1a1a;
+  color: #0F2118;
   margin-bottom: 2px;
 }
 
 .safety-zone-dist {
   font-size: 11px;
-  color: #9e9484;
+  color: #6F8378;
 }
 
 .safety-timestamp {
   font-size: 11px;
-  color: #9e9484;
+  color: #6F8378;
   text-align: center;
   padding-top: 12px;
-  border-top: 1px solid #f0ebe3;
+  border-top: 1px solid #E7F0E9;
 }
 
 /* Danger zone circles on map */
@@ -1280,10 +1267,10 @@ aside {
 .govt-id { display: flex; flex-direction: column; gap: 6px; }
 .govt-id-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: baseline; }
 .govt-id-type { font-weight: 600; }
-.govt-id-number { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; color: var(--muted); }
+.govt-id-number { font-family: inherit; font-variant-numeric: tabular-nums; font-size: 12px; color: var(--muted); }
 .govt-id-badges { display: flex; flex-wrap: wrap; gap: 6px; }
 .govt-id-badge { font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 999px; }
-.govt-id-badge.ok   { background: #ecfdf5; color: #166534; }
+.govt-id-badge.ok   { background: #E8F5EB; color: #166534; }
 .govt-id-badge.warn { background: #fffbeb; color: #92400e; }
 .govt-id-badge.bad  { background: #fef2f2; color: #b91c1c; }
 .govt-id-reason { font-size: 12px; color: var(--muted); line-height: 1.4; }
@@ -1293,10 +1280,10 @@ aside {
   padding: 5px 12px; border-radius: 8px; border: 1px solid var(--border);
   background: var(--surface); color: var(--text);
 }
-.govt-id-toggle:hover { background: #f4f1ec; }
+.govt-id-toggle:hover { background: #F2F7F3; }
 .govt-id-actions { display: flex; gap: 8px; }
 .govt-id-download { align-self: flex-start; font: inherit; font-size: 12px; font-weight: 600; cursor: pointer; padding: 5px 12px; border-radius: 8px; border: 1px solid #1b4332; background: #1b4332; color: #fff; }
-.govt-id-download:hover { background: #2d6a4f; }
+.govt-id-download:hover { background: #067F38; }
 .govt-id-preview { display: flex; flex-direction: column; gap: 6px; margin-top: 2px; }
 .govt-id-preview img { width: 100%; max-height: 260px; object-fit: contain; border: 1px solid var(--border); border-radius: 8px; background: #faf8f4; }
 .govt-id-preview iframe { width: 100%; height: 260px; border: 1px solid var(--border); border-radius: 8px; }
