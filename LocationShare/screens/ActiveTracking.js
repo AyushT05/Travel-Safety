@@ -12,9 +12,14 @@ import AiNotice from '../components/AiNotice';
 import NearbyServices from '../components/NearbyServices';
 import { recordFix } from '../lib/locationRecorder';
 import { subscribe } from '../lib/sync';
-import { pendingCounts, getLastFix, getTrackingContext } from '../lib/localDb';
+import { pendingCounts, getLastFix, getTrackingContext, setTrackingContext } from '../lib/localDb';
 import { ensureSmsPermission } from '../lib/smsFallback';
-import { startBackgroundTracking, stopBackgroundTracking, askBackgroundDisclosure, isBackgroundTrackingActive } from '../lib/backgroundTracking';
+import { startBackgroundTracking, askBackgroundDisclosure, isBackgroundTrackingActive } from '../lib/backgroundTracking';
+import { startForegroundWatch } from '../lib/foregroundTracking';
+import { stopAllTracking } from '../lib/trackingControl';
+import { afterFix } from '../lib/tripLegs';
+import { legFor, resumeIsDue } from '../lib/returnTrip';
+import { MODES, formatDuration } from '../lib/tripEstimate';
 import { classifyFreshness } from '../lib/locationQuality';
 
 export default function ActiveTracking({ user, card, onStop, trackingState, onTrackingStateChange }) {
@@ -29,8 +34,8 @@ export default function ActiveTracking({ user, card, onStop, trackingState, onTr
   const [now, setNow]               = useState(Date.now());
   const [restored, setRestored]     = useState(false);
   const backgroundRef = useRef(trackingState?.background || false);                   // read inside the watcher callback
-
-  const subscriptionRef = useRef(null);
+  // 'upcoming' | 'active' | 'paused' (return trip: waiting for the return day) | 'completed'
+  const [legStatus, setLegStatus]  = useState(card.status);
   const pulseAnim = useRef(new Animated.Value(1)).current;
   const ringAnim  = useRef(new Animated.Value(1)).current;
 
@@ -64,19 +69,37 @@ export default function ActiveTracking({ user, card, onStop, trackingState, onTr
     return () => clearInterval(t);
   }, []);
 
-  // Clean up the foreground watcher only when the component unmounts AND we're not actively sharing.
-  // If we're sharing but the screen is left (navigating away), keep the foreground watcher alive
-  // so updates continue even without background tracking. The watcher stops only via the Stop button.
-  useEffect(() => {
-    return () => {
-      // Only remove watcher if sharing was explicitly stopped (isSharing is false)
-      // Don't remove it when just navigating away while sharing is active
-      if (!isSharing) {
-        subscriptionRef.current?.remove();
-        subscriptionRef.current = null;
-      }
-    };
-  }, [isSharing]);
+  // The foreground watcher is owned by lib/foregroundTracking (one per app), not by this screen.
+  // Leaving the screen while sharing deliberately keeps it running; Stop Sharing stops it for real.
+
+  // One handler for every foreground fix, so there is a single place that records, counts and
+  // checks for arrival.
+  async function handleFgFix(pos) {
+    setLocationData({
+      name: user.id, lat: pos.coords.latitude, lon: pos.coords.longitude,
+      accuracy: pos.coords.accuracy, observedAt: pos.timestamp || Date.now(),
+    });
+    setUpdateCount(c => c + 1);
+    // Durable first: SQLite outbox, then the SyncManager uploads (batched, retried, idempotent).
+    // Recorded even when background mode is on: Android may not dispatch that service's task until
+    // the app is backgrounded.
+    try { await recordFix(pos, { userId: user.id, travelCardId: card.id }); }
+    catch (e) { console.warn('could not store fix locally:', e?.message ?? e); }
+    const ended = await afterFix(pos, { stopTracking: stopAllTracking });
+    if (ended) onLegEnded(ended);
+  }
+
+  function onLegEnded(kind) {   // 'paused' | 'completed'
+    backgroundRef.current = false; setBackground(false); setBgNote(null);
+    setIsSharing(false); setLocationData(null); setUpdateCount(0); stopPulse();
+    setLegStatus(kind);
+    Alert.alert(
+      kind === 'paused' ? 'You have arrived' : 'Welcome back',
+      kind === 'paused'
+        ? `Tracking is paused. It resumes on ${card.return_date}, when you head back.`
+        : 'Your trip is complete and tracking has stopped.'
+    );
+  }
 
   // Reopened while the service is still running (e.g. the app was swiped away): reflect that.
   // Also restart the foreground watcher if we were sharing when we left.
@@ -100,35 +123,10 @@ export default function ActiveTracking({ user, card, onStop, trackingState, onTr
         if (lastFix) setLocationData(lastFix);
       }
 
-      // If we were sharing when we navigated away, restart the foreground watcher
-      if (trackingState?.isSharing && !subscriptionRef.current) {
-        const sub = await Location.watchPositionAsync(
-          { accuracy: Location.Accuracy.High, timeInterval: 5000, distanceInterval: 0 },
-          async (pos) => {
-            const data = {
-              name: user.id,
-              lat: pos.coords.latitude,
-              lon: pos.coords.longitude,
-              accuracy: pos.coords.accuracy,
-              observedAt: pos.timestamp || Date.now(),
-            };
-            setLocationData(data);
-            setUpdateCount(c => c + 1);
-            // A foreground watcher is the most immediate source of truth
-            // while this screen is open. Record it even if the background
-            // service was enabled: Android may not dispatch that service's
-            // task until the app is backgrounded, and skipping here leaves a
-            // visibly "live" phone with no dashboard location.
-            try { await recordFix(pos, { userId: user.id, travelCardId: card.id }); }
-            catch (e) { console.warn('could not store fix locally:', e?.message ?? e); }
-          }
-        );
-        if (mounted) {
-          subscriptionRef.current = sub;
-          startPulse();
-        } else {
-          sub.remove();
-        }
+      // We were sharing when we navigated away: point the single watcher at this screen again.
+      if (trackingState?.isSharing) {
+        const ok = await startForegroundWatch(handleFgFix);
+        if (ok && mounted) startPulse();
       }
     }
 
@@ -137,7 +135,8 @@ export default function ActiveTracking({ user, card, onStop, trackingState, onTr
   }, []);
 
   useEffect(() => {
-    if (restored && isToday && !permissionAsked && !isSharing) {
+    const waitingForReturn = legStatus === 'paused' && !resumeIsDue({ ...card, status: legStatus }, today);
+    if (restored && isToday && !permissionAsked && !isSharing && !waitingForReturn && legStatus !== 'completed') {
       setPermissionAsked(true);
       Alert.alert(
         'Location Access Required',
@@ -148,7 +147,7 @@ export default function ActiveTracking({ user, card, onStop, trackingState, onTr
         ]
       );
     }
-  }, [restored, isToday, permissionAsked, isSharing]);
+  }, [restored, isToday, permissionAsked, isSharing, legStatus]);
 
   function startPulse() {
     Animated.loop(Animated.sequence([
@@ -174,9 +173,21 @@ export default function ActiveTracking({ user, card, onStop, trackingState, onTr
     ensureSmsPermission().catch(() => {}); // so an offline SOS can be texted without any taps
     // Background tracking is best effort: the disclosure can be declined, and Expo Go cannot do it.
     // Either way foreground sharing still works and records through the watcher below.
+    // Return trips: which leg is this, and where does it end? (null target = nothing auto-stops)
+    const leg = legFor({ ...card, status: legStatus });
+    const extra = leg.target
+      ? { leg: leg.leg, target: leg.target, pauseOnArrival: leg.pauseOnArrival,
+          completeOnArrival: leg.completeOnArrival, returnDate: card.return_date ?? null,
+          arrival: { count: 0, sinceMs: null } }
+      : null;
+
     let bg = { ok: false, reason: 'declined' };
     if (await askBackgroundDisclosure()) {
-      bg = await startBackgroundTracking({ userId: user.id, travelCardId: card.id, endDate: card.end_date });
+      bg = await startBackgroundTracking({ userId: user.id, travelCardId: card.id, endDate: card.end_date, extra });
+    }
+    // Foreground-only sharing still needs the leg context so arrival can be detected.
+    if (!bg.ok && extra) {
+      await setTrackingContext({ userId: user.id, travelCardId: card.id, endDate: card.end_date, extra }).catch(() => {});
     }
     backgroundRef.current = bg.ok;
     setBackground(bg.ok);
@@ -186,7 +197,16 @@ export default function ActiveTracking({ user, card, onStop, trackingState, onTr
 
     setIsSharing(true); setUpdateCount(0); setServerError(false);
     startPulse();
-    await supabase.from('travel_cards').update({ status: 'active' }).eq('id', card.id);
+    // Starting clears the server-side "stopped" marker (see Stop Sharing) and, on a return leg,
+    // records when tracking resumed so the dropout check does not fire before the first fix lands.
+    const patch = { status: 'active', tracking_stopped_at: null };
+    if (leg.leg === 'return') patch.tracking_resumed_at = new Date().toISOString();
+    let { error: cardErr } = await supabase.from('travel_cards').update(patch).eq('id', card.id);
+    if (cardErr) {   // migration 20261106 not applied yet: fall back to the old behaviour
+      ({ error: cardErr } = await supabase.from('travel_cards').update({ status: 'active' }).eq('id', card.id));
+      if (cardErr) console.warn('could not mark the trip active:', cardErr.message);
+    }
+    setLegStatus('active');
 
     // Do not wait for the first watch callback (which can be delayed by the
     // device). This gives a newly started trip an immediate, card-linked map
@@ -203,38 +223,20 @@ export default function ActiveTracking({ user, card, onStop, trackingState, onTr
       console.warn('could not get initial location fix:', e?.message ?? e);
     }
 
-    subscriptionRef.current = await Location.watchPositionAsync(
-      { accuracy: Location.Accuracy.High, timeInterval: 5000, distanceInterval: 0 },
-      async (pos) => {
-        const data = {
-          name: user.id,
-          lat: pos.coords.latitude,
-          lon: pos.coords.longitude,
-          accuracy: pos.coords.accuracy,
-          observedAt: pos.timestamp || Date.now(),
-        };
-        setLocationData(data);
-        setUpdateCount(c => c + 1);
-        // Durable first: the fix is saved to the phone's SQLite outbox, then uploaded by the
-        // SyncManager (batched, retried with backoff, idempotent via event_id). A network
-        // failure can no longer lose a fix. recorded_at on the server is the device time.
-        // Keep foreground sharing durable even when background mode is on.
-        // The OS only invokes the background task after the app is backgrounded;
-        // this watcher covers the open-screen period immediately.
-        try { await recordFix(pos, { userId: user.id, travelCardId: card.id }); }
-        catch (e) { console.warn('could not store fix locally:', e?.message ?? e); }
-      }
-    );
+    await startForegroundWatch(handleFgFix);
   }
 
   async function stopSharing() {
-    subscriptionRef.current?.remove();
-    subscriptionRef.current = null;
-    await stopBackgroundTracking();
+    await stopAllTracking();               // foreground watcher + background service + context
     backgroundRef.current = false; setBackground(false); setBgNote(null);
     setIsSharing(false); setLocationData(null);
     setUpdateCount(0); setServerError(false);
     stopPulse();
+    // Make Stop authoritative on the server too: fixes recorded after this moment are refused, so
+    // an old install, a stray service or a restarted task cannot keep feeding the dashboard.
+    // Best effort (the phone may be offline); the local stop above already happened.
+    supabase.from('travel_cards').update({ tracking_stopped_at: new Date().toISOString() }).eq('id', card.id)
+      .then(({ error }) => { if (error) console.warn('could not record the stop on the server:', error.message); });
   }
 
   const places    = card.places || [];
@@ -272,6 +274,25 @@ export default function ActiveTracking({ user, card, onStop, trackingState, onTr
         contentContainerStyle={{ padding: 20, paddingBottom: 48 }}
         showsVerticalScrollIndicator={false}
       >
+        {legStatus === 'paused' && !isSharing && (
+          <View style={s.pausedBox}>
+            <Feather name="pause-circle" size={18} color="#1D4ED8" />
+            <View style={{ flex: 1 }}>
+              <Text style={s.pausedTitle}>Tracking paused</Text>
+              <Text style={s.pausedText}>
+                You reached your destination. Tracking resumes on {card.return_date}, when you head back.
+                You can also resume it now.
+              </Text>
+            </View>
+          </View>
+        )}
+        {legStatus === 'completed' && !isSharing && (
+          <View style={s.okBox}>
+            <Feather name="check-circle" size={14} color="#166534" />
+            <Text style={s.okText}>Trip complete. Tracking has stopped.</Text>
+          </View>
+        )}
+
         {/* Live orb */}
         <View style={[s.liveCard, isSharing && s.liveCardActive]}>
           <View style={s.orbWrap}>
@@ -342,7 +363,7 @@ export default function ActiveTracking({ user, card, onStop, trackingState, onTr
         {!isSharing ? (
           <TouchableOpacity style={s.startBtn} onPress={startSharing} activeOpacity={0.9}>
             <Ionicons name="navigate" size={18} color="#fff" />
-            <Text style={s.startBtnText}>Start Location Sharing</Text>
+            <Text style={s.startBtnText}>{legStatus === 'paused' ? 'Resume Tracking' : 'Start Location Sharing'}</Text>
           </TouchableOpacity>
         ) : (
           <TouchableOpacity style={s.stopBtn} onPress={stopSharing} activeOpacity={0.9}>
@@ -360,6 +381,12 @@ export default function ActiveTracking({ user, card, onStop, trackingState, onTr
           <InfoRow label="Traveller" value={card.full_name} />
           <InfoRow label="Dates" value={`${card.start_date}  →  ${card.end_date}`} />
           {places.length > 0 && <InfoRow label="Route" value={places.join(' → ')} />}
+          {MODES[card.transport_mode] && <InfoRow label="Travelling by" value={MODES[card.transport_mode].label} />}
+          {card.eta_plan?.total_min != null && (
+            <InfoRow label="Estimated time"
+              value={`${formatDuration(card.eta_plan.total_min)}${card.eta_plan.break_min ? ` (includes ${formatDuration(card.eta_plan.break_min)} of breaks)` : ''}`} />
+          )}
+          {card.return_date && <InfoRow label="Heading back" value={card.return_date} />}
         </View>
 
         {emergency.length > 0 && (
@@ -463,6 +490,13 @@ const s = StyleSheet.create({
     borderRadius: 12, padding: 12, marginBottom: 16,
   },
   warnText: { fontSize: 13, color: '#92400E', fontWeight: '500', flex: 1 },
+  pausedBox: {
+    flexDirection: 'row', alignItems: 'flex-start', gap: 10,
+    backgroundColor: '#EFF6FF', borderWidth: 1, borderColor: '#BFDBFE',
+    borderRadius: 12, padding: 12, marginBottom: 16,
+  },
+  pausedTitle: { fontSize: 14, color: '#1E3A8A', fontWeight: '700', marginBottom: 2 },
+  pausedText: { fontSize: 13, color: '#1E40AF', fontWeight: '500', lineHeight: 18 },
   okBox: {
     flexDirection: 'row', alignItems: 'center', gap: 8,
     backgroundColor: '#F0FDF4', borderWidth: 1, borderColor: '#BBF7D0',

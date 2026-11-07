@@ -5,7 +5,7 @@ import { StatusBar } from 'expo-status-bar';
 import { Ionicons, Feather } from '@expo/vector-icons';
 import { supabase } from '../lib/supabase';
 import PanicButton from '../components/PanicButton';
-import { stopBackgroundTracking } from '../lib/backgroundTracking';
+import { stopAllTracking } from '../lib/trackingControl';
 import { getTrackingContext, deleteQueuedLocationsForCard } from '../lib/localDb';
 
 // Finished trips are removed automatically this many days after their end date
@@ -126,7 +126,7 @@ export default function HomeScreen({ user, onCreateCard, onStartTracking }) {
               // If this card is the one being tracked in the background, stop that first so
               // new fixes are not written against a card that is about to disappear.
               const ctx = await getTrackingContext().catch(() => null);
-              if (ctx?.travelCardId === card.id) await stopBackgroundTracking();
+              if (ctx?.travelCardId === card.id) await stopAllTracking();
 
               // select() makes a silently-blocked delete (RLS) visible as 0 returned rows.
               const { data, error } = await supabase

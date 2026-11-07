@@ -11,6 +11,7 @@ import * as Location from 'expo-location';
 import { Alert } from 'react-native';
 import { recordFix } from './locationRecorder';
 import { flush } from './sync';
+import { afterFix } from './tripLegs';
 import { setTrackingContext, getTrackingContext, clearTrackingContext } from './localDb';
 
 export const TRACKING_TASK = 'margarakshak-background-location';
@@ -35,6 +36,9 @@ TaskManager.defineTask(TRACKING_TASK, async ({ data, error }) => {
   for (const pos of ordered) {
     try { await recordFix(pos, { userId: ctx.userId, travelCardId: ctx.travelCardId, flush: false }); }
     catch (e) { console.warn('could not store background fix:', e?.message ?? e); }
+    // Return trips: arrival at the destination pauses tracking (and at home ends it). Once the
+    // leg is over the remaining fixes in this batch belong to nothing, so stop looking at them.
+    if (await afterFix(pos, { stopTracking: stopBackgroundTracking })) break;
   }
   flush();
 });
@@ -56,13 +60,13 @@ export function askBackgroundDisclosure() {
 
 // Returns { ok: true } or { ok: false, reason }. Never throws: failing to start the background
 // service must not stop foreground sharing or the SOS button.
-export async function startBackgroundTracking({ userId, travelCardId, endDate }) {
+export async function startBackgroundTracking({ userId, travelCardId, endDate, extra = null }) {
   try {
     let bg = await Location.getBackgroundPermissionsAsync();
     if (!bg.granted) bg = await Location.requestBackgroundPermissionsAsync();
     if (!bg.granted) return { ok: false, reason: 'background_permission_denied' };
 
-    await setTrackingContext({ userId, travelCardId, endDate });
+    await setTrackingContext({ userId, travelCardId, endDate, extra });
 
     if (!(await Location.hasStartedLocationUpdatesAsync(TRACKING_TASK))) {
       await Location.startLocationUpdatesAsync(TRACKING_TASK, {

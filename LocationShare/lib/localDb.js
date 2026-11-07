@@ -44,6 +44,8 @@ export function getDb() {
       `);
       // Phones that already ran Feature 1 have the table without sms_status.
       try { await db.execAsync(`ALTER TABLE outbox ADD COLUMN sms_status TEXT`); } catch { /* already there */ }
+      // Return-trip legs: JSON blob {leg, target, pauseOnArrival, completeOnArrival, returnDate, arrival}.
+      try { await db.execAsync(`ALTER TABLE tracking_context ADD COLUMN extra TEXT`); } catch { /* already there */ }
       return db;
     })();
   }
@@ -199,20 +201,29 @@ export async function getLastFix() {
 
 // ------------------------------------------------------------ tracking context
 
-export async function setTrackingContext({ userId, travelCardId, endDate }) {
+export async function setTrackingContext({ userId, travelCardId, endDate, extra = null }) {
   const db = await getDb();
   await db.runAsync(
-    `INSERT INTO tracking_context (id, user_id, travel_card_id, end_date, started_at) VALUES (1, ?, ?, ?, ?)
+    `INSERT INTO tracking_context (id, user_id, travel_card_id, end_date, started_at, extra) VALUES (1, ?, ?, ?, ?, ?)
      ON CONFLICT(id) DO UPDATE SET user_id = excluded.user_id, travel_card_id = excluded.travel_card_id,
-       end_date = excluded.end_date, started_at = excluded.started_at`,
-    [userId, travelCardId, endDate ?? null, Date.now()]
+       end_date = excluded.end_date, started_at = excluded.started_at, extra = excluded.extra`,
+    [userId, travelCardId, endDate ?? null, Date.now(), extra ? JSON.stringify(extra) : null]
   );
 }
 
 export async function getTrackingContext() {
   const db = await getDb();
-  const r = await db.getFirstAsync(`SELECT user_id, travel_card_id, end_date FROM tracking_context WHERE id = 1`);
-  return r ? { userId: r.user_id, travelCardId: r.travel_card_id, endDate: r.end_date } : null;
+  const r = await db.getFirstAsync(`SELECT user_id, travel_card_id, end_date, extra FROM tracking_context WHERE id = 1`);
+  if (!r) return null;
+  let extra = null;
+  try { extra = r.extra ? JSON.parse(r.extra) : null; } catch { extra = null; }
+  return { userId: r.user_id, travelCardId: r.travel_card_id, endDate: r.end_date, extra };
+}
+
+// Only the leg bookkeeping changes (arrival streak); the rest of the context is untouched.
+export async function updateTrackingExtra(extra) {
+  const db = await getDb();
+  await db.runAsync(`UPDATE tracking_context SET extra = ? WHERE id = 1`, [extra ? JSON.stringify(extra) : null]);
 }
 
 export async function clearTrackingContext() {

@@ -82,8 +82,10 @@ export default function useDevices() {
       if (!row?.user_id || !row?.recorded_at) return;
       const key = deviceKey(row);
       const prev = devicesRef.current[key];
-      // Ignore a late/out-of-order row so it cannot move the marker backwards.
-      if (prev && new Date(row.recorded_at).getTime() / 1000 < prev.timestamp) return;
+      // Ignore a late/out-of-order row so it cannot move the marker backwards, AND a row we already
+      // have: the 10 s poll and Realtime both deliver the newest row again and again, and counting
+      // those made "Updates" climb after the phone had stopped sending.
+      if (prev && new Date(row.recorded_at).getTime() / 1000 <= prev.timestamp) return;
       publish({ ...devicesRef.current, [key]: toDevice(row, prev) });
     }
 

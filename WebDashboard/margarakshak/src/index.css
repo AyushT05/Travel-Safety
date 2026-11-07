@@ -302,7 +302,8 @@ aside {
 .travel-card-directory-icon { color: var(--muted); }
 .travel-card-directory-dates { flex: 1; }
 .travel-card-directory-status { font-size: 9px; font-weight: 700; text-transform: none; }
-.travel-card-directory-status.active { color: #15803d; }.travel-card-directory-status.upcoming { color: #a16207; }.travel-card-directory-status.completed { color: var(--muted); }
+.travel-card-directory-status.active { color: #15803d; }.travel-card-directory-status.upcoming { color: #a16207; }.travel-card-directory-status.completed { color: var(--muted); }.travel-card-directory-status.paused { color: #1d4ed8; }
+.td-eta { margin-top: 4px; font-size: 12px; color: var(--muted); line-height: 1.4; }
 .unregistered-feeds { margin-top: 14px; }
 .unregistered-feeds-title { padding: 5px 7px; color: var(--muted); font-size: 10px; font-weight: 700; text-transform: none; }
 

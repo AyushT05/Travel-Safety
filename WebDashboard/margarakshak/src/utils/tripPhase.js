@@ -9,13 +9,15 @@ export function todayLocal(now = new Date()) {
   return new Intl.DateTimeFormat("en-CA", { timeZone: TZ, year: "numeric", month: "2-digit", day: "2-digit" }).format(now);
 }
 
-// "active" | "upcoming" | "completed" | "unknown"
+// "active" | "paused" | "upcoming" | "completed" | "unknown"
+// "paused" = a return trip whose outbound leg has ended; tracking resumes on card.return_date.
 export function tripPhase(card, now = new Date()) {
   if (!card?.start_date || !card?.end_date) return "unknown";
   const today = todayLocal(now);
   if (card.status === "completed" || card.status === "cancelled") return "completed";
   if (card.end_date < today) return "completed";
   if (card.start_date > today) return "upcoming";
+  if (card.status === "paused") return "paused";
   return "active";
 }
 

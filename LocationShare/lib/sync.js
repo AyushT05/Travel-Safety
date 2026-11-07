@@ -25,6 +25,13 @@ let locFailures = 0;
 let lastAckCheck = 0;
 
 export function subscribe(fn) { listeners.add(fn); return () => listeners.delete(fn); }
+
+// The server refuses fixes recorded after the trip was stopped / paused / completed (see the
+// locations_tracking_gate trigger). Whoever owns tracking registers here to switch everything off,
+// so a stray watcher cannot keep a phone's GPS and battery busy for nothing.
+const rejectListeners = new Set();
+export function onTrackingRejected(fn) { rejectListeners.add(fn); return () => rejectListeners.delete(fn); }
+const isGateError = (e) => !!e && e.code === '23514' && /tracking_(stopped|paused|completed)/.test(e.message || '');
 function emit() { for (const fn of listeners) { try { fn(); } catch { /* listener bug must not break sync */ } } }
 
 const jitter = (ms) => ms * (0.75 + Math.random() * 0.5);
@@ -127,6 +134,21 @@ async function checkAcknowledgements() {
   }
 }
 
+async function flushIndividually(rows) {
+  let rejected = false;
+  for (const r of rows) {
+    const { error } = await supabase.from('locations').upsert(
+      [JSON.parse(r.payload)], { onConflict: 'event_id', ignoreDuplicates: true });
+    if (!error) { await deleteEvents([r.event_id]); continue; }
+    if (isGateError(error)) { await deleteEvents([r.event_id]); rejected = true; continue; }
+    locFailures += 1;                              // transient: leave this row and the rest queued
+    locBackoffUntil = Date.now() + jitter(Math.min(120000, 2000 * 2 ** Math.min(locFailures, 6)));
+    await bumpLocationFailure([r.event_id], String(error.message ?? error));
+    return { rejected, failed: true };
+  }
+  return { rejected, failed: false };
+}
+
 async function flushLocations(force) {
   for (let i = 0; i < MAX_BATCHES_PER_FLUSH; i++) {
     if (!force && Date.now() < locBackoffUntil) return;
@@ -151,6 +173,15 @@ async function flushLocations(force) {
       // (by the user, or by the 7-day purge). Retrying can never succeed.
       await deleteEvents(ids);
       emit();
+      continue;
+    }
+    if (error && isGateError(error)) {
+      // A batch is all-or-nothing, so older legitimate fixes in it failed too. Send them one by
+      // one; only the ones the server really refuses are dropped.
+      const r = await flushIndividually(rows);
+      emit();
+      if (r.rejected) for (const fn of rejectListeners) { try { fn(); } catch { /* listener bug must not break sync */ } }
+      if (r.failed) return;
       continue;
     }
     if (error) {

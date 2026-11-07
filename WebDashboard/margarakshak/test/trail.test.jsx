@@ -89,3 +89,22 @@ test("pickActivity uses the device's travel card, never a stale user-id row", ()
   expect(pickActivity({ [U]: { currentState:"RESTING" } }, { travelCardId:"card-1" }, U)).toBeNull();
   expect(pickActivity(activity, { travelCardId:null }, U).currentState).toBe("RESTING");   // legacy pings only
 });
+
+
+test("Updates only counts NEW pings: the poll / realtime re-delivering the newest row is not an update", async () => {
+  tables.latest_locations_by_card = [row(5)];
+  tables.locations = [row(5)];
+  const { result } = renderHook(() => useDevices());
+  await waitFor(() => expect(result.current.devices["card-1"]).toBeTruthy());
+  const base = result.current.devices["card-1"].updates;
+
+  // The phone has stopped; the same newest row keeps arriving (10 s poll, Realtime reconnect).
+  for (let i = 0; i < 5; i++) act(() => handlers[0]({ new: row(5) }));
+  expect(result.current.devices["card-1"].updates).toBe(base);
+
+  // A genuinely newer ping still counts, an older one never does.
+  act(() => handlers[0]({ new: row(6) }));
+  expect(result.current.devices["card-1"].updates).toBe(base + 1);
+  act(() => handlers[0]({ new: row(2) }));
+  expect(result.current.devices["card-1"].updates).toBe(base + 1);
+});

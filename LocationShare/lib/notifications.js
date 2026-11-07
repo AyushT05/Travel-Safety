@@ -51,3 +51,37 @@ export async function showLocalNotification(n) {
     await Notifications.scheduleNotificationAsync({ content: { title: n.title, body: n.body, data: { id: n.id } }, trigger: null });
   } catch { /* the in-app card is the primary channel */ }
 }
+
+// ---------------------------------------------------------------- return-trip reminder
+// Android 12+ does not let an app start a location foreground service from the background, so the
+// app cannot silently restart tracking on the return date. Instead it schedules ONE local
+// reminder; tapping it opens the app, which resumes tracking (see ActiveTracking).
+// No-op when the optional `expo-notifications` package is not installed.
+export async function scheduleResumeReminder(date, travelCardId) {
+  if (!Notifications || !(date instanceof Date) || date.getTime() <= Date.now()) return null;
+  try {
+    const perm = await Notifications.getPermissionsAsync();
+    if (!perm.granted && perm.canAskAgain) await Notifications.requestPermissionsAsync();
+    return await Notifications.scheduleNotificationAsync({
+      content: {
+        title: 'Heading back today?',
+        body: 'Open Margarakshak to resume safety tracking for your return journey.',
+        data: { kind: 'resume_tracking', travelCardId },
+      },
+      trigger: { type: Notifications.SchedulableTriggerInputTypes?.DATE ?? 'date', date },
+    });
+  } catch (e) {
+    console.warn('could not schedule the resume reminder:', e?.message ?? e);
+    return null;
+  }
+}
+
+export async function cancelResumeReminders() {
+  if (!Notifications) return;
+  try {
+    const all = await Notifications.getAllScheduledNotificationsAsync();
+    for (const n of all) {
+      if (n?.content?.data?.kind === 'resume_tracking') await Notifications.cancelScheduledNotificationAsync(n.identifier);
+    }
+  } catch { /* best effort */ }
+}

@@ -355,14 +355,19 @@ export function TravelCardDetail({ card, onClose, onMinimize, isAdmin, onDeleteC
   const isActive = phase === "active";
   const isUpcoming = phase === "upcoming";
 
+  const isPaused = phase === "paused";
   const statusLabel = isActive
     ? "Active"
+    : isPaused
+    ? "Paused"
     : isUpcoming
     ? "Upcoming"
     : "Completed";
 
   const statusClass = isActive
     ? "status-active"
+    : isPaused
+    ? "status-upcoming"
     : isUpcoming
     ? "status-upcoming"
     : "status-done";
@@ -465,6 +470,29 @@ export function TravelCardDetail({ card, onClose, onMinimize, isAdmin, onDeleteC
           {formatDate(card.end_date)}
         </DetailSection>
 
+        {(card.transport_mode || card.eta_plan?.total_min != null) && (
+          <DetailSection icon="navigation" label="Journey">
+            {MODE_LABELS[card.transport_mode] || ""}
+            {card.eta_plan?.total_min != null && (
+              <div className="td-eta">
+                About {formatMinutes(card.eta_plan.total_min)} end to end
+                {card.eta_plan.break_min
+                  ? ` (${formatMinutes(card.eta_plan.moving_min)} travelling + ${formatMinutes(card.eta_plan.break_min)} planned stops)`
+                  : ""}
+                {card.eta_plan.overnight_halts ? `, ${card.eta_plan.overnight_halts} overnight halt(s)` : ""}
+              </div>
+            )}
+          </DetailSection>
+        )}
+
+        {card.return_date && (
+          <DetailSection icon="corner-up-left" label="Return trip">
+            {isPaused
+              ? `Arrived at the destination. Tracking resumes on ${formatShortDate(card.return_date)}.`
+              : `Heading back on ${formatShortDate(card.return_date)}. Tracking pauses at the destination until then.`}
+          </DetailSection>
+        )}
+
         {card.places?.length > 0 && (
           <DetailSection
             icon="map-pin"
@@ -564,6 +592,15 @@ function DetailSection({ icon, label, children }) {
       </>
     ),
 
+    navigation: (
+      <polygon points="3 11 22 2 13 21 11 13 3 11" />
+    ),
+    "corner-up-left": (
+      <>
+        <polyline points="9 14 4 9 9 4" />
+        <path d="M20 20v-7a4 4 0 0 0-4-4H4" />
+      </>
+    ),
     "map-pin": (
       <>
         <path d="M12 22s-8-4.5-8-11.8A8 8 0 0 1 12 2a8 8 0 0 1 8 8.2c0 7.3-8 11.8-8 11.8z" />
@@ -639,6 +676,19 @@ function shortId(id) {
 
 function formatShortDate(date) {
   return date ? new Date(`${date}T00:00:00`).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }) : "—";
+}
+
+const MODE_LABELS = {
+  car: "Car / taxi", bike: "Motorbike / scooter", bus: "Bus", train: "Train",
+  flight: "Flight", cycle: "Cycle", walk: "On foot",
+};
+
+function formatMinutes(min) {
+  const m = Math.round(min);
+  if (m < 60) return `${m} min`;
+  const h = Math.floor(m / 60);
+  if (h >= 24) return `${Math.floor(h / 24)} d ${h % 24} h`;
+  return m % 60 ? `${h} h ${m % 60} min` : `${h} h`;
 }
 
 function cardStatus(card) {

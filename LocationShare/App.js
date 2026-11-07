@@ -6,7 +6,8 @@ import AuthScreen from './screens/AuthScreen';
 import HomeScreen from './screens/HomeScreen';
 import CreateTravelCard from './screens/CreateTravelCard';
 import ActiveTracking from './screens/ActiveTracking';
-import { startSync } from './lib/sync';
+import { stopAllTracking } from './lib/trackingControl';
+import { startSync, onTrackingRejected } from './lib/sync';
 import './lib/backgroundTracking'; // registers the background location task at load time
 
 function Splash() {
@@ -54,6 +55,9 @@ export default function App() {
     startSync().then((fn) => { if (cancelled) fn(); else stop = fn; }).catch((e) => console.warn('sync start failed', e));
     return () => { cancelled = true; if (stop) stop(); };
   }, [user?.id]);
+
+  // The server refuses fixes after a trip was stopped / paused / completed: shut everything down.
+  useEffect(() => onTrackingRejected(() => { stopAllTracking().catch(() => {}); }), []);
 
   if (loading || !fontsLoaded) return <Splash />;
 

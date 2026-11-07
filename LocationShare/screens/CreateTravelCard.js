@@ -10,8 +10,22 @@ import DateTimePicker from '@react-native-community/datetimepicker';
 import * as ImageManipulator from 'expo-image-manipulator';
 import { supabase } from '../lib/supabase';
 import { checkIdNumberFormat } from '../utils/idValidation';
+import { estimateTrip, MODES, MODE_KEYS, formatDuration, haversineKm, parseHHMM } from '../lib/tripEstimate';
+import { validateReturnDate } from '../lib/returnTrip';
 
 const STEPS = ['Notice', 'Details', 'Trip', 'Contacts'];
+
+// One leg per consecutive pair of located places. `routed` = [{km, min}] from OSRM, same order.
+function buildLegs(points, routed) {
+  const out = [];
+  for (let i = 0; i + 1 < points.length; i++) {
+    const a = points[i], b = points[i + 1];
+    const straightKm = haversineKm({ lat: a.lat, lon: a.lon }, { lat: b.lat, lon: b.lon });
+    const r = routed?.length === points.length - 1 ? routed[i] : null;
+    out.push({ from: a.name, to: b.name, straightKm, roadKm: r?.km, roadMin: r?.min });
+  }
+  return out;
+}
 
 function toDbDate(d) {
   if (!d) return '';
@@ -42,6 +56,11 @@ export default function CreateTravelCard({ user, onDone, onBack }) {
   const [endDate, setEndDate]             = useState(null);
   const [showStartPicker, setShowStartPicker] = useState(false);
   const [showEndPicker, setShowEndPicker]     = useState(false);
+  // Transport + optional return trip
+  const [transportMode, setTransportMode]   = useState('car');
+  const [departureTime, setDepartureTime]   = useState('');      // 'HH:MM', optional
+  const [returnDate, setReturnDate]         = useState(null);    // optional
+  const [showReturnPicker, setShowReturnPicker] = useState(false);
 
   // Trip structure: start point and final destination are required and
   // always occupy the first/last position; intermediate stops are optional.
@@ -211,6 +230,7 @@ export default function CreateTravelCard({ user, onDone, onBack }) {
               const coordsList = r0.geometry?.coordinates || [];
               plannedRoute = {
                 polyline: coordsList.map(c => [c[1], c[0]]), // [lat, lon]
+                legs: (r0.legs || []).map(l => ({ km: l.distance / 1000, min: l.duration / 60 })),
                 distance_km: Math.round(r0.distance / 100) / 10,
                 duration_hours: Math.round((r0.duration / 3600) * 10) / 10,
                 source: 'osrm',
@@ -229,6 +249,14 @@ export default function CreateTravelCard({ user, onDone, onBack }) {
         placeDetails.push({ _type: 'planned_route', ...plannedRoute });
       }
 
+      // Time estimate for the chosen mode. Road legs come from the routing result when we have it
+      // (OSRM returns one leg per consecutive pair); otherwise straight-line distance is used.
+      const etaPlan = estimateTrip({
+        mode: transportMode,
+        departureTime: departureTime.trim() || null,
+        legs: buildLegs(validWaypoints, plannedRoute?.legs),
+      });
+
       const cardPayload = {
         user_id: user.id, full_name: fullName, mobile,
         document_type: docType, document_url: documentUrl,
@@ -241,16 +269,23 @@ export default function CreateTravelCard({ user, onDone, onBack }) {
         places,
         place_details: placeDetails,
         planned_route: plannedRoute,
+        transport_mode: transportMode,
+        departure_time: parseHHMM(departureTime) != null ? departureTime.trim() : null,
+        eta_plan: etaPlan,
+        return_date: returnDate ? toDbDate(returnDate) : null,
         companions: companions.filter(c => c.name.trim()),
         emergency_contacts: validEmergency,
         disclaimer_accepted: true, status: 'upcoming',
       };
 
       let { error } = await supabase.from('travel_cards').insert(cardPayload);
-      if (error && error.message && error.message.includes('planned_route')) {
-        delete cardPayload.planned_route;
-        const retryRes = await supabase.from('travel_cards').insert(cardPayload);
-        error = retryRes.error;
+      // Older database (migration not applied yet): drop whichever optional column it does not know.
+      for (let i = 0; error?.message && i < 6; i++) {
+        const col = ['planned_route', 'transport_mode', 'departure_time', 'eta_plan', 'return_date']
+          .find(c => error.message.includes(c) && c in cardPayload);
+        if (!col) break;
+        delete cardPayload[col];
+        ({ error } = await supabase.from('travel_cards').insert(cardPayload));
       }
       if (error) Alert.alert('Error', error.message);
       else Alert.alert(
@@ -538,6 +573,66 @@ export default function CreateTravelCard({ user, onDone, onBack }) {
               onChange={setEndDate}
             />
 
+            <FLabel text="How are you travelling?" />
+            <View style={s.chipRow}>
+              {MODE_KEYS.map(k => (
+                <TouchableOpacity key={k} style={[s.chip, transportMode === k && s.chipActive]}
+                  onPress={() => setTransportMode(k)} activeOpacity={0.8}>
+                  <Text style={[s.chipText, transportMode === k && s.chipTextActive]}>{MODES[k].label}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+
+            <FLabel text="Departure time (optional, 24 h, e.g. 06:30)" />
+            <FInput value={departureTime} onChange={setDepartureTime} placeholder="HH:MM" keyboard="numbers-and-punctuation" />
+
+            {(() => {
+              const pts = [placeInfo.start, ...placeInfo.stops, placeInfo.dest]
+                .map(i => i?.place).filter(p => p && p.lat != null && p.lon != null)
+                .map(p => ({ name: p.name, lat: p.lat, lon: p.lon }));
+              const est = pts.length >= 2 ? estimateTrip({ mode: transportMode, departureTime: departureTime.trim() || null, legs: buildLegs(pts) }) : null;
+              if (!est) return null;
+              return (
+                <View style={s.etaBox}>
+                  <Text style={s.etaTitle}>About {formatDuration(est.total_min)} door to door</Text>
+                  <Text style={s.etaText}>
+                    {formatDuration(est.moving_min)} travelling
+                    {est.break_min ? ` + ${formatDuration(est.break_min)} for ${est.breaks.length} planned stops (meals, rest)` : ''}
+                    {est.buffer_min ? ` + ${est.buffer_min} min boarding buffer` : ''}.
+                    {est.overnight_halts ? ` Includes ${est.overnight_halts} overnight halt(s).` : ''}
+                    {' '}Rough straight-line estimate; road routing refines it when you submit.
+                    Normal stops like these will not be flagged as unusual.
+                  </Text>
+                </View>
+              );
+            })()}
+
+            <FLabel text="Return date (optional)" />
+            <View style={{ flexDirection: 'row', gap: 10, alignItems: 'center' }}>
+              <View style={{ flex: 1 }}>
+                <DateField value={returnDate} onPress={() => {
+                  if (!startDate || !endDate) { Alert.alert('Pick your travel dates first', 'The return date must fall inside them.'); return; }
+                  setShowReturnPicker(true);
+                }} />
+              </View>
+              {returnDate && (
+                <TouchableOpacity onPress={() => setReturnDate(null)} hitSlop={10}>
+                  <Text style={s.chipText}>Clear</Text>
+                </TouchableOpacity>
+              )}
+            </View>
+            <Text style={s.hintText}>
+              Tracking pauses once you reach your final destination and resumes on this date for the way back.
+              Leave empty to be tracked continuously until your end date.
+            </Text>
+            <DatePickerSheet
+              visible={showReturnPicker}
+              value={returnDate || startDate || new Date()}
+              minimumDate={startDate || new Date()}
+              onClose={() => setShowReturnPicker(false)}
+              onChange={setReturnDate}
+            />
+
             <FLabel text="Start Point" />
             <PlaceField
               value={startPoint} onChangeText={setStartPoint}
@@ -606,6 +701,15 @@ export default function CreateTravelCard({ user, onDone, onBack }) {
               if (!startPoint.trim() || !finalDestination.trim()) {
                 Alert.alert('Required', 'Please enter a start point and final destination.'); return;
               }
+              if (departureTime.trim() && parseHHMM(departureTime) == null) {
+                Alert.alert('Departure time', 'Use 24-hour HH:MM, for example 06:30, or leave it empty.'); return;
+              }
+              const retErr = validateReturnDate({
+                startYmd: toDbDate(startDate), endYmd: toDbDate(endDate),
+                returnYmd: returnDate ? toDbDate(returnDate) : null,
+                destinationHasCoords: placeInfo.dest?.place?.lat != null && placeInfo.dest?.place?.lon != null,
+              });
+              if (retErr) { Alert.alert('Return trip', retErr); return; }
               // Serious warnings do not block the trip, but the traveller must see them first.
               const checks = [placeInfo.start, ...placeInfo.stops, placeInfo.dest].filter(i => i?.risk);
               const serious = checks.filter(i => ['warning', 'danger'].includes(worstSeverity(i.risk)));
@@ -667,6 +771,8 @@ export default function CreateTravelCard({ user, onDone, onBack }) {
                 { label: 'Mobile',             value: mobile },
                 { label: 'Document',           value: idNumber.trim() ? `${docType} (${idNumber.trim()})` : docType },
                 { label: 'Dates',              value: `${toDisplayDate(startDate)} -> ${toDisplayDate(endDate)}` },
+                { label: 'Travelling by',      value: MODES[transportMode].label },
+                ...(returnDate ? [{ label: 'Heading back', value: toDisplayDate(returnDate) }] : []),
                 { label: 'Route',               value: [startPoint, ...waypoints.filter(Boolean), finalDestination].filter(Boolean).join(' -> ') || '--' },
                 { label: 'Emergency contacts', value: `${emergency.filter(c => c.name && c.phone).length} added` },
               ].map((row, i) => (
@@ -878,6 +984,15 @@ const s = StyleSheet.create({
   checkboxChecked: { backgroundColor: '#DC2626' },
   overrideText: { fontSize: 12, color: '#DC2626', fontWeight: '600', flex: 1 },
 
+  chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 6 },
+  chip: { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 999, borderWidth: 1, borderColor: '#D5E2DA', backgroundColor: '#FFFFFF' },
+  chipActive: { backgroundColor: '#0F3D2A', borderColor: '#0F3D2A' },
+  chipText: { fontSize: 13, color: '#3D5446', fontWeight: '600' },
+  chipTextActive: { color: '#FFFFFF' },
+  etaBox: { backgroundColor: '#F2F8F4', borderWidth: 1, borderColor: '#CFE3D6', borderRadius: 12, padding: 12, marginTop: 10 },
+  etaTitle: { fontSize: 14, color: '#0F3D2A', fontWeight: '700', marginBottom: 2 },
+  etaText: { fontSize: 12.5, color: '#3D5446', lineHeight: 18 },
+  hintText: { fontSize: 12, color: '#6F8378', marginTop: 6, lineHeight: 17 },
   dateBtn: {
     flexDirection: 'row', alignItems: 'center', gap: 8,
     paddingVertical: 13, paddingHorizontal: 16,
