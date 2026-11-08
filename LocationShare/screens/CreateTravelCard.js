@@ -213,7 +213,8 @@ export default function CreateTravelCard({ user, onDone, onBack }) {
         { text: finalDestination, info: placeInfo.dest },
       ].filter(x => x.text.trim()).map(x => x.info?.place
         ? { name: x.text.trim(), place_id: x.info.place.id, lat: x.info.place.lat, lon: x.info.place.lon,
-            state: x.info.place.state, district: x.info.place.district, risk: summarizeRisk(x.info.risk) }
+            state: x.info.place.state, district: x.info.place.district, risk: summarizeRisk(x.info.risk),
+            ...(x.info.place.current ? { current: true, accuracy_m: x.info.place.accuracy_m } : {}) }
         : { name: x.text.trim(), verified: false });
 
       // Compute planned driving route polyline from waypoints
@@ -385,7 +386,7 @@ export default function CreateTravelCard({ user, onDone, onBack }) {
                   style={[s.chip, docType === type && s.chipActive]}
                   onPress={() => setDocType(type)}
                 >
-                  {docType === type && <Feather name="check" size={12} color="#1B4332" />}
+                  {docType === type && <Feather name="check" size={14} color="#067F38" />}
                   <Text style={[s.chipText, docType === type && s.chipTextActive]}>{type}</Text>
                 </TouchableOpacity>
               ))}
@@ -637,6 +638,7 @@ export default function CreateTravelCard({ user, onDone, onBack }) {
             <PlaceField
               value={startPoint} onChangeText={setStartPoint}
               info={placeInfo.start} onInfoChange={v => setPlaceInfo(p => ({ ...p, start: v }))}
+              allowCurrentLocation skipRiskCheck
               startDate={startDate} endDate={endDate}
               placeholder="Where does your trip begin? (search a city or place)"
             />
@@ -941,15 +943,15 @@ const s = StyleSheet.create({
   inputInvalid: { borderColor: '#DC2626' },
   idFormatError: { fontSize: 12, color: '#DC2626', marginTop: -8, marginBottom: 12 },
 
-  chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 18 },
+  // Chips sit in an even two-column grid; every chip is the same height with icon + label on one line.
+  chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginBottom: 18 },
   chip: {
-    flexDirection: 'row', alignItems: 'center', gap: 5,
-    paddingVertical: 8, paddingHorizontal: 14, borderRadius: 20,
-    borderWidth: 1.5, borderColor: '#DAE6DD', backgroundColor: '#fff',
+    flexGrow: 1, flexBasis: '45%', height: 46, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7,
+    paddingHorizontal: 14, borderRadius: 14, borderWidth: 1.5, borderColor: '#DAE6DD', backgroundColor: '#fff',
   },
-  chipActive:     { borderColor: '#1B4332', backgroundColor: '#E8F5EB' },
-  chipText:       { fontSize: 13, fontWeight: '600', color: '#6F8378' },
-  chipTextActive: { color: '#1B4332' },
+  chipActive:     { borderColor: '#067F38', backgroundColor: '#E8F5EB' },
+  chipText:       { fontSize: 14, fontWeight: '600', color: '#5B7266' },
+  chipTextActive: { color: '#0E3B24', fontWeight: '700' },
 
   uploadBtn: {
     flexDirection: 'row', alignItems: 'center', gap: 12,
@@ -984,11 +986,6 @@ const s = StyleSheet.create({
   checkboxChecked: { backgroundColor: '#DC2626' },
   overrideText: { fontSize: 12, color: '#DC2626', fontWeight: '600', flex: 1 },
 
-  chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 6 },
-  chip: { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 999, borderWidth: 1, borderColor: '#D5E2DA', backgroundColor: '#FFFFFF' },
-  chipActive: { backgroundColor: '#0F3D2A', borderColor: '#0F3D2A' },
-  chipText: { fontSize: 13, color: '#3D5446', fontWeight: '600' },
-  chipTextActive: { color: '#FFFFFF' },
   etaBox: { backgroundColor: '#F2F8F4', borderWidth: 1, borderColor: '#CFE3D6', borderRadius: 12, padding: 12, marginTop: 10 },
   etaTitle: { fontSize: 14, color: '#0F3D2A', fontWeight: '700', marginBottom: 2 },
   etaText: { fontSize: 12.5, color: '#3D5446', lineHeight: 18 },

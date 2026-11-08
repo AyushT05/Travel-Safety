@@ -187,9 +187,9 @@ export default function HomeScreen({ user, onCreateCard, onStartTracking }) {
       <View style={s.header}>
         <View style={s.headerLeft}>
           <Image source={require('../assets/logo-mark.png')} style={s.headerMark} resizeMode="contain" />
-          <View>
+          <View style={s.headerText}>
             <Text style={s.headerGreeting}>Good {getTimeOfDay()}</Text>
-            <Text style={s.headerName}>{name}</Text>
+            <Text style={s.headerName} numberOfLines={1} ellipsizeMode="tail">{name}</Text>
           </View>
         </View>
         <TouchableOpacity style={s.signOutBtn} onPress={() => supabase.auth.signOut()}>
@@ -667,11 +667,12 @@ const s = StyleSheet.create({
     paddingHorizontal: 20, paddingTop: Platform.OS === 'ios' ? 56 : 40, paddingBottom: 16,
   },
   headerGreeting: { fontSize: 13, color: '#6F8378', fontWeight: '500', marginBottom: 2 },
-  headerLeft: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  headerLeft: { flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', gap: 12, marginRight: 14 },
+  headerText: { flex: 1, minWidth: 0 },
   headerMark: { width: 40, height: 36 },
   headerName: { fontFamily: DISPLAY, fontSize: 24, color: '#0E3B24', letterSpacing: -0.4 },
   signOutBtn: {
-    width: 40, height: 40, borderRadius: 20, backgroundColor: '#fff',
+    flexShrink: 0, width: 40, height: 40, borderRadius: 20, backgroundColor: '#fff',
     alignItems: 'center', justifyContent: 'center', borderWidth: 1.5, borderColor: '#DAE6DD',
   },
 

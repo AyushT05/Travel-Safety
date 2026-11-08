@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { View, Animated, StyleSheet } from 'react-native';
-import { useFonts, PlusJakartaSans_400Regular, PlusJakartaSans_500Medium, PlusJakartaSans_600SemiBold, PlusJakartaSans_700Bold, PlusJakartaSans_800ExtraBold } from '@expo-google-fonts/plus-jakarta-sans';
+import { useFonts, Manrope_400Regular, Manrope_500Medium, Manrope_600SemiBold, Manrope_700Bold, Manrope_800ExtraBold } from '@expo-google-fonts/manrope';
 import { supabase } from './lib/supabase';
 import AuthScreen from './screens/AuthScreen';
 import HomeScreen from './screens/HomeScreen';
@@ -28,7 +28,7 @@ function Splash() {
 
 export default function App() {
   const [fontsLoaded] = useFonts({
-    PlusJakartaSans_400Regular, PlusJakartaSans_500Medium, PlusJakartaSans_600SemiBold, PlusJakartaSans_700Bold, PlusJakartaSans_800ExtraBold,
+    Manrope_400Regular, Manrope_500Medium, Manrope_600SemiBold, Manrope_700Bold, Manrope_800ExtraBold,
   });
   const [user, setUser]           = useState(null);
   const [loading, setLoading]     = useState(true);
