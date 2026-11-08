@@ -27,7 +27,7 @@
 @keyframes pinPulse { 0% { transform: scale(1); opacity: .9; } 100% { transform: scale(3.4); opacity: 0; } }
 .auth-fence { fill: rgba(127,224,160,.07); stroke: rgba(127,224,160,.7); stroke-width: 1.5; stroke-dasharray: 5 6; opacity: 0; animation: fenceIn .9s 2.4s ease-out forwards; }
 @keyframes fenceIn { to { opacity: 1; } }
-.auth-pitch h2 { font-family: var(--font-display, 'Fraunces', Georgia, serif); font-weight: 500; font-size: clamp(26px, 2.8vw, 38px); line-height: 1.15; letter-spacing: -.5px; max-width: 18ch; margin-bottom: 14px; }
+.auth-pitch h2 { font-family: var(--font-display, 'Manrope'), sans-serif; font-weight: 500; font-size: clamp(26px, 2.8vw, 38px); line-height: 1.15; letter-spacing: -.5px; max-width: 18ch; margin-bottom: 14px; }
 .auth-pitch p { font-size: 15px; line-height: 1.6; color: rgba(242,247,243,.74); max-width: 46ch; margin-bottom: 20px; }
 .auth-features { list-style: none; display: flex; flex-wrap: wrap; gap: 8px 10px; }
 .auth-features li { font-size: 13px; font-weight: 500; padding: 7px 14px 7px 12px; border-radius: 999px; background: rgba(242,247,243,.08); border: 1px solid rgba(242,247,243,.14); display: inline-flex; align-items: center; gap: 8px; }
@@ -37,7 +37,7 @@
 .auth-form-wrap { width: 100%; max-width: 400px; animation: formIn .7s .15s cubic-bezier(.22,1,.36,1) both; }
 @keyframes formIn { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
 .auth-logo-small { display: none; height: 54px; margin-bottom: 20px; }
-.auth-form-head h1 { font-family: var(--font-display, 'Fraunces', Georgia, serif); font-weight: 600; font-size: 32px; letter-spacing: -.6px; color: #0E3B24; margin-bottom: 6px; }
+.auth-form-head h1 { font-family: var(--font-display, 'Manrope'), sans-serif; font-weight: 600; font-size: 32px; letter-spacing: -.6px; color: #0E3B24; margin-bottom: 6px; }
 .auth-form-head p { font-size: 15px; color: #66796E; margin-bottom: 26px; }
 
 .auth-tabs { position: relative; display: grid; grid-template-columns: 1fr 1fr; background: #E3EDE5; border-radius: 13px; padding: 4px; margin-bottom: 22px; }

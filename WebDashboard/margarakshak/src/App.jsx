@@ -250,8 +250,8 @@ export default function App() {
             onToggleLayers={() => setShowMapLayers((open) => !open)}
             mapLayersOpen={showMapLayers}
           />
-          {selectedCard && !isCardMinimized && (
-            <div className="map-travel-card-panel">
+          {selectedCard && (
+            <div className={`map-travel-card-panel${isCardMinimized ? " is-min" : ""}`} inert={isCardMinimized}>
               <TravelCardDetail
                 card={liveSelectedCard}
                 isAdmin={auth?.role === "admin"}
@@ -261,10 +261,10 @@ export default function App() {
               />
             </div>
           )}
-          {selectedCard && isCardMinimized && (
+          {selectedCard && (
             // Minimized = the card is tucked away but the traveller stays selected, so the map keeps following
             // and updating them. (Close deselects; this does not.)
-            <div className={`minimized-travel-card ${selectedInsight && selectedInsight.status !== "normal" ? `ins-${selectedInsight.status}` : ""}`}
+            <div inert={!isCardMinimized} className={`minimized-travel-card${isCardMinimized ? "" : " is-hidden"} ${selectedInsight && selectedInsight.status !== "normal" ? `ins-${selectedInsight.status}` : ""}`}
                  role="group" aria-label="Minimized travel card">
               <span className={`mtc-dot ${(selectedDevice?.freshnessStatus || "stale").toLowerCase()}`} title={selectedDevice ? `Location ${selectedDevice.freshnessStatus}` : "No location yet"} />
               <button type="button" className="mtc-expand" onClick={() => setIsCardMinimized(false)} title="Expand travel card"

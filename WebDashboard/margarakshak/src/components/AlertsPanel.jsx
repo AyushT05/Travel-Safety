@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useAuth } from "../context/AuthContext";
 
 const TYPE_LABEL = {
@@ -12,14 +13,16 @@ const TYPE_LABEL = {
 
 export default function AlertsPanel({ alerts, travelCards = [], onAcknowledge, onResolve, onClose }) {
   const { auth } = useAuth();
+  const [closing, setClosing] = useState(false);
+  const close = () => { if (closing) return; setClosing(true); setTimeout(onClose, 280); };
   const isAdmin = auth?.role === "admin";
 
   return (
-    <div className="alerts-overlay" onClick={(e) => e.target === e.currentTarget && onClose()}>
+    <div className={`alerts-overlay${closing ? " closing" : ""}`} onClick={(e) => e.target === e.currentTarget && close()}>
       <div className="alerts-panel">
         <div className="alerts-panel-header">
           <div className="alerts-panel-title">Alerts</div>
-          <button className="alerts-panel-close" onClick={onClose}>
+          <button className="alerts-panel-close" onClick={close} aria-label="Close alerts">
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
               <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
             </svg>

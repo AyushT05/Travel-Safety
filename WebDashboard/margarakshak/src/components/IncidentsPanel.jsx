@@ -285,15 +285,17 @@ function IncidentCard({ inc, card, onAct, onFocus }) {
 
 export default function IncidentsPanel({ incidents, travelCards = [], onAct, onFocus, onClose }) {
   const [showLow, setShowLow] = useState(false);
+  const [closing, setClosing] = useState(false);
+  const close = () => { if (closing) return; setClosing(true); setTimeout(onClose, 280); };
   const visible = incidents.filter((i) => showLow || i.level !== "low");
   const hidden = incidents.length - visible.length;
 
   return (
-    <div className="inc-overlay" onClick={(e) => e.target === e.currentTarget && onClose()}>
+    <div className={`inc-overlay${closing ? " closing" : ""}`} onClick={(e) => e.target === e.currentTarget && close()}>
       <div className="inc-panel">
         <div className="inc-head">
           <div className="inc-title">Incidents</div>
-          <button className="inc-close" onClick={onClose} aria-label="Close">✕</button>
+          <button className="inc-close" onClick={close} aria-label="Close">✕</button>
         </div>
         <div className="inc-toolbar">
           <span>{visible.length} shown{hidden > 0 && ` · ${hidden} low priority hidden`}</span>
